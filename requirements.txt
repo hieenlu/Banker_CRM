@@ -1,0 +1,10 @@
+streamlit
+SQLAlchemy
+pandas
+openpyxl
+yfinance
+vnstock
+requests
+beautifulsoup4
+lxml
+python-telegram-bot
