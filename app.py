@@ -2754,6 +2754,112 @@ button[kind="primary"] {
                 ]
                 traditional_rows_all = [r for r in sorted_rows if r not in x_rows_all]
 
+                with st.expander("Sentiment Analysis", expanded=False):
+                    if not sorted_rows:
+                        st.caption("No headlines available for sentiment analysis.")
+                    else:
+                        positive_terms = {
+                            "gain",
+                            "gains",
+                            "rally",
+                            "surge",
+                            "beat",
+                            "beats",
+                            "bull",
+                            "bullish",
+                            "growth",
+                            "recover",
+                            "recovery",
+                            "up",
+                            "rise",
+                            "rises",
+                            "strong",
+                            "optimism",
+                            "record",
+                        }
+                        negative_terms = {
+                            "drop",
+                            "drops",
+                            "fall",
+                            "falls",
+                            "selloff",
+                            "bear",
+                            "bearish",
+                            "miss",
+                            "misses",
+                            "recession",
+                            "risk",
+                            "risks",
+                            "crash",
+                            "decline",
+                            "declines",
+                            "weak",
+                            "fear",
+                            "inflation",
+                        }
+
+                        def _headline_sentiment_score(text: str) -> int:
+                            tokens = re.findall(r"[a-z0-9]+", (text or "").lower())
+                            pos = sum(1 for t in tokens if t in positive_terms)
+                            neg = sum(1 for t in tokens if t in negative_terms)
+                            return pos - neg
+
+                        row_scores: list[int] = []
+                        source_stats: dict[str, dict[str, int]] = {}
+                        tag_scores: dict[str, int] = {}
+                        for r in sorted_rows:
+                            score = _headline_sentiment_score(str(r.get("headline", "") or ""))
+                            row_scores.append(score)
+                            source_name = str(r.get("source", "") or "Unknown")
+                            if source_name not in source_stats:
+                                source_stats[source_name] = {"count": 0, "sum": 0}
+                            source_stats[source_name]["count"] += 1
+                            source_stats[source_name]["sum"] += score
+                            for tag in r.get("tags", []):
+                                t = str(tag).strip().lower()
+                                if not t:
+                                    continue
+                                tag_scores[t] = tag_scores.get(t, 0) + score
+
+                        total_items = len(row_scores)
+                        avg_score = (sum(row_scores) / total_items) if total_items else 0.0
+                        if avg_score > 0.1:
+                            sentiment_label = "Bullish"
+                        elif avg_score < -0.1:
+                            sentiment_label = "Bearish"
+                        else:
+                            sentiment_label = "Neutral"
+
+                        bull_ratio = (sum(1 for s in row_scores if s > 0) / total_items * 100.0) if total_items else 0.0
+                        bear_ratio = (sum(1 for s in row_scores if s < 0) / total_items * 100.0) if total_items else 0.0
+
+                        m1, m2, m3, m4 = st.columns(4)
+                        m1.metric("Overall", sentiment_label)
+                        m2.metric("Avg Score", f"{avg_score:+.2f}")
+                        m3.metric("Bullish Headlines", f"{bull_ratio:.0f}%")
+                        m4.metric("Bearish Headlines", f"{bear_ratio:.0f}%")
+
+                        src_rows: list[dict[str, Any]] = []
+                        for src, stt in source_stats.items():
+                            count = stt["count"]
+                            avg = (stt["sum"] / count) if count else 0.0
+                            src_rows.append({"Source": src, "Headlines": count, "Avg Score": round(avg, 2)})
+                        src_rows = sorted(src_rows, key=lambda x: (x["Avg Score"], x["Headlines"]), reverse=True)
+                        if src_rows:
+                            st.caption("By source")
+                            st.dataframe(pd.DataFrame(src_rows), width="stretch", hide_index=True)
+
+                        if tag_scores:
+                            top_pos = sorted(tag_scores.items(), key=lambda x: x[1], reverse=True)[:5]
+                            top_neg = sorted(tag_scores.items(), key=lambda x: x[1])[:5]
+                            cpos, cneg = st.columns(2)
+                            with cpos:
+                                st.caption("Top positive tags")
+                                st.write(", ".join(f"{k} ({v:+d})" for k, v in top_pos) if top_pos else "—")
+                            with cneg:
+                                st.caption("Top negative tags")
+                                st.write(", ".join(f"{k} ({v:+d})" for k, v in top_neg) if top_neg else "—")
+
                 # Global clear-archive by Date field:
                 # keep rows from the latest date (and undated rows), remove older dated rows.
                 valid_dates_all = [str(r.get("date", "") or "") for r in rows if str(r.get("date", "") or "")]
