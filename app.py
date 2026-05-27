@@ -23,6 +23,7 @@ from scraper import (
 from telegram_bot import TelegramConfig, load_telegram_config_from_env, send_telegram_message
 from fetch_prices import fetch_latest_prices
 from client_import import build_import_template_bytes, import_clients_workbook
+from ui_responsive import responsive_styles_css
 from utils import (
     client_portfolio_table,
     format_display_money,
@@ -33,7 +34,14 @@ from utils import (
 )
 
 
-st.set_page_config(page_title="Banker Personal CRM", layout="wide")
+try:
+    st.set_page_config(
+        page_title="Banker Personal CRM",
+        layout="wide",
+        initial_sidebar_state="auto",
+    )
+except TypeError:
+    st.set_page_config(page_title="Banker Personal CRM", layout="wide")
 
 
 def get_db_url() -> str:
@@ -109,7 +117,6 @@ def _safe_str(x: Any) -> str:
 def _render_clients_table(clients: list[Client]) -> None:
     rows = [
         {
-            "ID": c.id,
             "Name": c.name,
             "Birthday": iso_date_or_empty(c.birthday),
             "Phone": _safe_str(c.phone_number),
@@ -119,7 +126,7 @@ def _render_clients_table(clients: list[Client]) -> None:
     ]
     if not rows:
         st.dataframe(
-            pd.DataFrame(columns=["ID", "Name", "Birthday", "Phone", "Email"]),
+            pd.DataFrame(columns=["Name", "Birthday", "Phone", "Email"]),
             width="stretch",
             hide_index=True,
         )
@@ -316,6 +323,10 @@ def _send_due_telegram_notifications(session) -> dict[str, Any]:
 def main() -> None:
     st.title("Banker Personal CRM")
     st.markdown(
+        '<p class="crm-mobile-hint">Tip: swipe wide tables and portfolio rows left/right on your phone.</p>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
         """
 <style>
 button[kind="primary"] {
@@ -324,7 +335,8 @@ button[kind="primary"] {
     color: #ffffff !important;
 }
 </style>
-""",
+"""
+        + responsive_styles_css(),
         unsafe_allow_html=True,
     )
 
