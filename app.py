@@ -323,10 +323,6 @@ def _send_due_telegram_notifications(session) -> dict[str, Any]:
 def main() -> None:
     st.title("Banker Personal CRM")
     st.markdown(
-        '<p class="crm-mobile-hint">Tip: swipe wide tables and portfolio rows left/right on your phone.</p>',
-        unsafe_allow_html=True,
-    )
-    st.markdown(
         """
 <style>
 button[kind="primary"] {

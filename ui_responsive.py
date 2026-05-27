@@ -52,24 +52,23 @@ def responsive_styles_css() -> str:
     font-size: 0.9rem;
   }
 
-  /* Streamlit column rows: horizontal swipe (keeps header/row alignment) */
+  /* Streamlit column rows: wrap into stacked blocks (no horizontal swipe) */
   div[data-testid="stHorizontalBlock"] {
-    overflow-x: auto;
-    overflow-y: hidden;
-    flex-wrap: nowrap !important;
-    -webkit-overflow-scrolling: touch;
+    overflow-x: visible;
+    overflow-y: visible;
+    flex-wrap: wrap !important;
     gap: 0.45rem;
-    padding-bottom: 6px;
+    padding-bottom: 2px;
     margin-bottom: 0.15rem;
-    scrollbar-width: thin;
   }
   div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-    flex: 0 0 auto !important;
-    width: auto !important;
-    min-width: 4.25rem;
+    flex: 1 1 calc(50% - 0.45rem) !important;
+    width: calc(50% - 0.45rem) !important;
+    min-width: 0 !important;
   }
   div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
-    min-width: 5.5rem;
+    flex-basis: 100% !important;
+    width: 100% !important;
   }
 
   /* Dataframes / editors */
@@ -154,19 +153,6 @@ def responsive_styles_css() -> str:
     align-items: flex-start;
   }
 
-  .crm-mobile-hint {
-    display: block;
-    font-size: 0.8rem;
-    color: #64748b;
-    margin: 0 0 0.65rem 0;
-    padding: 0.4rem 0.55rem;
-    border-radius: 6px;
-    background: rgba(100, 116, 139, 0.12);
-  }
-}
-
-.crm-mobile-hint {
-  display: none;
 }
 
 /* Narrow phones (Pro non-Max) */
@@ -176,7 +162,8 @@ def responsive_styles_css() -> str:
     grid-template-columns: 1fr !important;
   }
   div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-    min-width: 3.75rem;
+    flex-basis: 100% !important;
+    width: 100% !important;
   }
 }
 </style>
