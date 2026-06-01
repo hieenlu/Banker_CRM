@@ -1211,6 +1211,35 @@ button[kind="primary"] {
                                 return f"{int(q):,}" if q.is_integer() else f"{q:,.2f}"
                             return str(value)
 
+                        def _build_mobile_metric_pairs(
+                            row_item: Any,
+                            col_names: list[str],
+                            *,
+                            label_for_col: Any | None = None,
+                            max_cols: int = 8,
+                        ) -> list[tuple[str, str]]:
+                            pairs: list[tuple[str, str]] = []
+                            for name in col_names[:max_cols]:
+                                if name == "P&L %":
+                                    continue
+                                value_for_cell = row_item[name]
+                                if (
+                                    name == "Principal"
+                                    and str(row_item.get("Asset Type", "") or "").strip().lower() == "real estate"
+                                    and "Principal Display" in row_item
+                                ):
+                                    value_for_cell = row_item.get("Principal Display", row_item[name])
+                                label = label_for_col(name) if label_for_col else name
+                                display = _fmt_cell(name, value_for_cell)
+                                if name == "Unrealized P&L":
+                                    pct_raw = row_item.get("P&L %", "")
+                                    if pct_raw not in (None, "") and not (
+                                        isinstance(pct_raw, float) and pd.isna(pct_raw)
+                                    ):
+                                        display = f"{display} ({_fmt_cell('P&L %', pct_raw)})"
+                                pairs.append((label, display))
+                            return pairs
+
                         grouped_active: dict[str, dict[str, list[tuple[Investment, Any]]]] = {}
                         for i, inv in enumerate(inv_order):
                             row = df.iloc[i]
@@ -1234,17 +1263,7 @@ button[kind="primary"] {
                             ).strip()
                             title_lbl = f"{row_item['Asset Type']}{f' · {ticker_lbl}' if ticker_lbl else ''}"
                             st.markdown(f"**{title_lbl}**")
-                            metric_pairs: list[tuple[str, str]] = []
-                            for name in visible_cols[: min(len(visible_cols), 6)]:
-                                value_for_cell = row_item[name]
-                                if (
-                                    name == "Principal"
-                                    and str(row_item.get("Asset Type", "") or "").strip().lower() == "real estate"
-                                    and "Principal Display" in row_item
-                                ):
-                                    value_for_cell = row_item.get("Principal Display", row_item[name])
-                                metric_pairs.append((name, _fmt_cell(name, value_for_cell)))
-                            render_mobile_kv_grid(metric_pairs)
+                            render_mobile_kv_grid(_build_mobile_metric_pairs(row_item, visible_cols))
                             ac1, ac2 = st.columns(2, gap="small")
                             if ac1.button("Edit", key=f"portfolio_edit_mobile_{c.id}_{inv_item.id}"):
                                 suffix = f"_{c.id}_{inv_item.id}"
@@ -1903,19 +1922,22 @@ button[kind="primary"] {
                                                 f"**{row_item['Asset Type']}"
                                                 f"{f' · {ticker_lbl}' if ticker_lbl else ''}**"
                                             )
-                                            past_pairs: list[tuple[str, str]] = []
-                                            for name in visible_past_cols[: min(len(visible_past_cols), 6)]:
-                                                display_name = (
-                                                    "Closing Price"
-                                                    if name == "Current Price"
-                                                    else "Closing Value"
-                                                    if name == "Current Value"
-                                                    else "Realized P&L"
-                                                    if name == "Unrealized P&L"
-                                                    else name
+                                            def _past_col_label(col: str) -> str:
+                                                if col == "Current Price":
+                                                    return "Closing Price"
+                                                if col == "Current Value":
+                                                    return "Closing Value"
+                                                if col == "Unrealized P&L":
+                                                    return "Realized P&L"
+                                                return col
+
+                                            render_mobile_kv_grid(
+                                                _build_mobile_metric_pairs(
+                                                    row_item,
+                                                    visible_past_cols,
+                                                    label_for_col=_past_col_label,
                                                 )
-                                                past_pairs.append((display_name, _fmt_cell(name, row_item[name])))
-                                            render_mobile_kv_grid(past_pairs)
+                                            )
                                             if st.button("↩ Active", key=f"rollback_inv_mobile_{c.id}_{inv_item.id}"):
                                                 inv_to_restore = session.get(Investment, inv_item.id)
                                                 if inv_to_restore:
