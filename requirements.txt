@@ -1,4 +1,5 @@
 streamlit
+# Optional: pip install streamlit-js-eval for viewport width without URL ?vw= sync
 SQLAlchemy
 pandas
 openpyxl

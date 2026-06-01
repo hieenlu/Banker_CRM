@@ -1,5 +1,47 @@
 """Global responsive CSS for phone-sized viewports (iPhone Pro / Pro Max and similar)."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TypeVar
+
+import streamlit as st
+
+T = TypeVar("T")
+
+
+def iter_item_pairs(items: list[T]):
+    for i in range(0, len(items), 2):
+        yield items[i], items[i + 1] if i + 1 < len(items) else None
+
+
+def render_two_column_cards(items: list[T], render_item: Callable[[T], None]) -> None:
+    """Render list items as bordered cards in a 2-column grid."""
+    if not items:
+        return
+    for left, right in iter_item_pairs(items):
+        col_left, col_right = st.columns(2, gap="small")
+        with col_left:
+            with st.container(border=True):
+                render_item(left)
+        if right is not None:
+            with col_right:
+                with st.container(border=True):
+                    render_item(right)
+
+
+def render_mobile_kv_grid(pairs: list[tuple[str, str]]) -> None:
+    """Show label/value pairs in two columns (no vertical stack)."""
+    for i in range(0, len(pairs), 2):
+        c1, c2 = st.columns(2, gap="small")
+        for col, idx in ((c1, i), (c2, i + 1)):
+            if idx >= len(pairs):
+                break
+            label, value = pairs[idx]
+            with col:
+                st.caption(label)
+                st.write(value)
+
 
 def responsive_styles_css() -> str:
     """Return CSS injected once at app startup."""
@@ -12,6 +54,12 @@ def responsive_styles_css() -> str:
     padding-right: max(0.75rem, env(safe-area-inset-right));
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+}
+
+/* Layout mode set by ui_device.py viewport sync */
+body[data-crm-layout="mobile"] .main .block-container {
+  padding-left: 0.65rem;
+  padding-right: 0.65rem;
 }
 
 /* --- Phones: iPhone Pro (~393px) and Pro Max (~430px); cap at tablet --- */
@@ -52,23 +100,18 @@ def responsive_styles_css() -> str:
     font-size: 0.9rem;
   }
 
-  /* Streamlit column rows: wrap into stacked blocks (no horizontal swipe) */
+  /* Streamlit rows: consistent two-column rhythm on phone */
   div[data-testid="stHorizontalBlock"] {
     overflow-x: visible;
     overflow-y: visible;
     flex-wrap: wrap !important;
-    gap: 0.45rem;
-    padding-bottom: 2px;
-    margin-bottom: 0.15rem;
+    gap: 0.4rem;
+    margin-bottom: 0.1rem;
   }
   div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-    flex: 1 1 calc(50% - 0.45rem) !important;
-    width: calc(50% - 0.45rem) !important;
+    flex: 1 1 calc(50% - 0.35rem) !important;
+    width: calc(50% - 0.35rem) !important;
     min-width: 0 !important;
-  }
-  div[data-testid="stHorizontalBlock"] > div[data-testid="column"]:first-child {
-    flex-basis: 100% !important;
-    width: 100% !important;
   }
 
   /* Dataframes / editors */
@@ -143,10 +186,10 @@ def responsive_styles_css() -> str:
     padding: 8px 10px;
   }
   .fg-stats {
-    flex-direction: column;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 6px;
-    font-size: 0.86rem;
+    font-size: 0.82rem;
   }
   .fg-row {
     flex-direction: column;
@@ -155,16 +198,8 @@ def responsive_styles_css() -> str:
 
 }
 
-/* Narrow phones (Pro non-Max) */
-@media (max-width: 400px) {
-  .snapshot-grid,
-  .snapshot-grid-6 {
-    grid-template-columns: 1fr !important;
-  }
-  div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-    flex-basis: 100% !important;
-    width: 100% !important;
-  }
+body[data-crm-layout="mobile"] div[data-testid="stMetric"] {
+  min-width: 0;
 }
 </style>
 """
