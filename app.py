@@ -25,6 +25,16 @@ from fetch_prices import fetch_latest_prices
 from client_import import build_import_template_bytes, import_clients_workbook
 from ui_responsive import render_mobile_kv_grid, render_two_column_cards, responsive_styles_css
 from ui_device import device_layout_label, ensure_viewport_detected, is_mobile_ui
+from client_dashboard_ui import (
+    allocation_cards_ex_re_debt,
+    apply_pending_client_tab,
+    build_subgroup_stats,
+    client_dashboard_css,
+    queue_client_tab,
+    render_catalog_streamlit,
+    render_html_block,
+    render_sidebar_html,
+)
 from utils import (
     client_portfolio_table,
     format_display_money,
@@ -855,124 +865,6 @@ button[kind="primary"] {
                         and bool(getattr(inc, "is_done", False))
                         and not bool(getattr(inc, "concurrent", False))
                     )
-                    st.markdown(
-                        """
-<style>
-.snapshot-wrap { margin: 0.2rem 0 0.8rem 0; }
-.snapshot-section {
-  border: 1px solid #dbeafe;
-  border-left: 4px solid #2563eb;
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 8px;
-  background: linear-gradient(180deg, #f8fbff 0%, #f1f7ff 100%);
-}
-.snapshot-section:nth-child(2) {
-  border-color: #d1fae5;
-  border-left-color: #059669;
-  background: linear-gradient(180deg, #f7fffb 0%, #f0fff8 100%);
-}
-.snapshot-section:nth-child(3) {
-  border-color: #fecdd3;
-  border-left-color: #dc2626;
-  background: linear-gradient(180deg, #fff5f5 0%, #fff1f1 100%);
-}
-.snapshot-title {
-  font-size: 0.80rem;
-  font-weight: 700;
-  color: #1e3a8a;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  margin-bottom: 8px;
-}
-.snapshot-section:nth-child(2) .snapshot-title { color: #065f46; }
-.snapshot-section:nth-child(3) .snapshot-title { color: #991b1b; }
-.snapshot-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-.snapshot-grid-6 {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-}
-.snapshot-card {
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 8px 9px;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-.snapshot-label {
-  font-size: 0.69rem;
-  color: #475569;
-  margin-bottom: 4px;
-}
-.snapshot-value {
-  font-size: 0.86rem;
-  font-weight: 700;
-  color: #0f172a;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow-x: auto;
-}
-@media (prefers-color-scheme: dark) {
-  .snapshot-section {
-    border-color: #334155;
-    border-left-color: #3b82f6;
-    background: linear-gradient(180deg, #0b1220 0%, #101827 100%);
-  }
-  .snapshot-section:nth-child(2) {
-    border-color: #334155;
-    border-left-color: #10b981;
-    background: linear-gradient(180deg, #0b1a17 0%, #0f221d 100%);
-  }
-  .snapshot-section:nth-child(3) {
-    border-color: #334155;
-    border-left-color: #ef4444;
-    background: linear-gradient(180deg, #1a0b0b 0%, #221010 100%);
-  }
-  .snapshot-title { color: #bfdbfe; }
-  .snapshot-section:nth-child(2) .snapshot-title { color: #a7f3d0; }
-  .snapshot-section:nth-child(3) .snapshot-title { color: #fca5a5; }
-  .snapshot-card {
-    border-color: #334155;
-    background: #0f172a;
-    box-shadow: none;
-  }
-  .snapshot-label { color: #94a3b8; }
-  .snapshot-value { color: #e2e8f0; }
-}
-</style>
-""",
-                        unsafe_allow_html=True,
-                    )
-                    ex_pct_txt = f" ({pct_ex_re:.2f}%)" if pct_ex_re is not None else ""
-                    inc_pct_txt = f" ({pct_all:.2f}%)" if pct_all is not None else ""
-                    inc_ratio = "N/A" if debt_all <= 0 else f"{(current_all / debt_all):.2f}x"
-                    ex_cards = [
-                        ("Total Principal", format_display_money(principal_ex_re, disp_ccy, decimals=0)),
-                        ("Current Value", format_display_money(current_ex_re, disp_ccy, decimals=0)),
-                        ("Unrealized P&L", f"{format_display_money(pnl_ex_re, disp_ccy, decimals=0)}{ex_pct_txt}"),
-                        ("Realized P&L", format_display_money(realized_past_sum, disp_ccy, decimals=0)),
-                    ]
-                    inc_cards = [
-                        ("Total Principal", format_display_money(principal_all, disp_ccy, decimals=0)),
-                        ("Current Value", format_display_money(current_all, disp_ccy, decimals=0)),
-                        ("Total Debts Value", format_display_money(debt_all, disp_ccy, decimals=0)),
-                        ("Unrealized P&L", f"{format_display_money(pnl_all, disp_ccy, decimals=0)}{inc_pct_txt}"),
-                        ("Total Equity / Total Debt", inc_ratio),
-                    ]
-                    ex_cards_html = "".join(
-                        f"<div class='snapshot-card'><div class='snapshot-label'>{k}</div><div class='snapshot-value'>{v}</div></div>"
-                        for k, v in ex_cards
-                    )
-                    inc_cards_html = "".join(
-                        f"<div class='snapshot-card'><div class='snapshot-label'>{k}</div><div class='snapshot-value'>{v}</div></div>"
-                        for k, v in inc_cards
-                    )
-                    # --- Cashflow section ---
                     _other_obligation_type = "Other Obligations"
                     monthly_income_total = sum(
                         float(inc.amount or 0.0)
@@ -1004,508 +896,731 @@ button[kind="primary"] {
                         else "N/A"
                     )
                     net_cashflow = monthly_income_total - monthly_obligations_total
-                    cf_cards = [
-                        ("Monthly Incomes", format_display_money(monthly_income_total, disp_ccy, decimals=0)),
-                        ("Monthly Obligations", format_display_money(monthly_obligations_total, disp_ccy, decimals=0)),
-                        ("Net Cashflow", format_display_money(net_cashflow, disp_ccy, decimals=0)),
-                        ("Income / Obligations Ratio", cashflow_ratio),
-                    ]
-                    cf_cards_html = "".join(
-                        f"<div class='snapshot-card'><div class='snapshot-label'>{k}</div><div class='snapshot-value'>{v}</div></div>"
-                        for k, v in cf_cards
-                    )
-                    st.markdown(
-                        f"""
-<div class="snapshot-wrap">
-  <div class="snapshot-section">
-    <div class="snapshot-title">Excluding Real Estate</div>
-    <div class="snapshot-grid">
-      {ex_cards_html}
-    </div>
-  </div>
-  <div class="snapshot-section">
-    <div class="snapshot-title">Including Real Estate</div>
-    <div class="snapshot-grid-6">
-      {inc_cards_html}
-    </div>
-  </div>
-  <div class="snapshot-section">
-    <div class="snapshot-title">Cashflow</div>
-    <div class="snapshot-grid">
-      {cf_cards_html}
-    </div>
-  </div>
-</div>
-""",
-                        unsafe_allow_html=True,
-                    )
+                    inc_pct_txt = f" ({pct_all:.2f}%)" if pct_all is not None else ""
+                    inc_ratio = "N/A" if debt_all <= 0 else f"{(current_all / debt_all):.2f}x"
+                    mobile_drill_key = f"mobile_portfolio_drill_{c.id}"
 
-                    if df.empty:
-                        st.info("No active investments for this client.")
-                    else:
-                        if mobile_ui:
-                            st.caption("Tap a category to open holdings. Summary shows total, allocation, and P&L.")
-                        else:
-                            st.caption("Active investments grouped into Equities and Debts. Click a group to see details.")
-                        reset_done_key = st.session_state.get("done_checkbox_reset_key")
-                        if reset_done_key:
-                            if reset_done_key in st.session_state:
-                                del st.session_state[reset_done_key]
-                            st.session_state.done_checkbox_reset_key = None
-                        rest_cols = [
-                            col
-                            for col in df.columns
-                            if col
-                            not in {
-                                "Asset Type",
-                                "Principal Display",
-                                "Current Value Display",
-                                "Unrealized P&L Display",
-                            }
-                        ]
+                    def _active_group_label(asset_name: str) -> str:
+                        a = (asset_name or "").strip().lower()
+                        return "Debts" if a == "debt" else "Equities"
 
-                        def _active_group_label(asset_name: str) -> str:
-                            a = (asset_name or "").strip().lower()
-                            return "Debts" if a == "debt" else "Equities"
+                    def _active_subgroup_label(asset_name: str) -> str:
+                        a = (asset_name or "").strip().lower()
+                        if a == "stock":
+                            return "VN_Stock"
+                        if _is_cd_kind(a) or a == "cash":
+                            return "Cash and CDs"
+                        if a == "debt":
+                            return "Debt"
+                        return asset_name
 
-                        def _active_subgroup_label(asset_name: str) -> str:
-                            a = (asset_name or "").strip().lower()
-                            if a == "stock":
-                                return "VN_Stock"
-                            if _is_cd_kind(a) or a == "cash":
-                                return "Cash and CDs"
-                            if a == "debt":
-                                return "Debt"
-                            return asset_name
+                    grouped_active: dict[str, dict[str, list[tuple[Investment, Any]]]] = {}
+                    if not df.empty:
+                        for i, inv in enumerate(inv_order):
+                            row = df.iloc[i]
+                            top_group = _active_group_label(str(row["Asset Type"]))
+                            sub_group = _active_subgroup_label(str(row["Asset Type"]))
+                            grouped_active.setdefault(top_group, {}).setdefault(sub_group, []).append((inv, row))
 
-                        def _past_group_label(asset_name: str) -> str:
-                            a = (asset_name or "").strip().lower()
-                            if _is_cd_kind(a) or a == "cash":
-                                return "Cash and CDs"
-                            return asset_name
-
-                        subgroup_order_rank = {
-                            "Cash and CDs": 1,
-                            "Term Deposit": 2,
-                            "Bond": 3,
-                            "VN_Stock": 4,
-                            "US_Stock": 5,
-                            "Crypto": 6,
-                            "Real Estate": 7,
+                    rest_cols = [
+                        col
+                        for col in (df.columns if not df.empty else [])
+                        if col
+                        not in {
+                            "Asset Type",
+                            "Principal Display",
+                            "Current Value Display",
+                            "Unrealized P&L Display",
                         }
+                    ]
 
-                        def _subgroup_sort_key(name: str) -> tuple[int, str]:
-                            return (subgroup_order_rank.get(str(name), 999), str(name))
+                    def _past_group_label(asset_name: str) -> str:
+                        a = (asset_name or "").strip().lower()
+                        if _is_cd_kind(a) or a == "cash":
+                            return "Cash and CDs"
+                        return asset_name
 
-                        def _visible_cols_for_group(group_label: str) -> list[str]:
-                            if group_label == "Debt":
-                                return [
-                                    "Outstanding Balance",
-                                    "Interest Rate %",
-                                    "Principal Payment",
-                                    "Est Interest Payment",
-                                    "Total Monthly Payment",
-                                    "Notes",
-                                ]
-                            if group_label == "Cash and CDs":
-                                return ["Principal"]
-                            if group_label in {"VN_Stock", "US_Stock", "Commodity", "Crypto"}:
-                                cols = [
-                                    c
-                                    for c in rest_cols
-                                    if c
-                                    in {
-                                        "Ticker",
-                                        "Unit",
-                                        "Buy Price",
-                                        "Current Price",
-                                        "Principal",
-                                        "Current Value",
-                                        "Unrealized P&L",
-                                        "P&L %",
-                                        "Notes",
-                                    }
-                                ]
-                                if "Notes" in cols:
-                                    cols = [c for c in cols if c != "Notes"] + ["Notes"]
-                                return cols
-                            if group_label == "Bond":
-                                return [
-                                    c
-                                    for c in rest_cols
-                                    if c
-                                    in {
-                                        "Ticker",
-                                        "Unit",
-                                        "Principal",
-                                        "Expected Coupon (Amount)",
-                                        "Received Coupon (Amount)",
-                                        "YTM %",
-                                        "Maturity Date",
-                                        "Unrealized P&L",
-                                    }
-                                ]
-                            if group_label == "Term Deposit":
-                                return [
-                                    c
-                                    for c in rest_cols
-                                    if c
-                                    in {
-                                        "Principal",
-                                        "Buy Date",
-                                        "Tenor",
-                                        "Interest Rate %",
-                                        "Maturity Date",
-                                        "Interest",
-                                    }
-                                ]
-                            if group_label == "Real Estate":
-                                return ["Principal", "Investment Value", "Current Value", "Unrealized P&L", "P&L %", "Notes"]
-                            # Equities default bucket.
+                    subgroup_order_rank = {
+                        "Cash and CDs": 1,
+                        "Term Deposit": 2,
+                        "Bond": 3,
+                        "VN_Stock": 4,
+                        "US_Stock": 5,
+                        "Crypto": 6,
+                        "Real Estate": 7,
+                    }
+
+                    def _subgroup_sort_key(name: str) -> tuple[int, str]:
+                        return (subgroup_order_rank.get(str(name), 999), str(name))
+
+                    def _visible_cols_for_group(group_label: str) -> list[str]:
+                        if group_label == "Debt":
+                            return [
+                                "Outstanding Balance",
+                                "Interest Rate %",
+                                "Principal Payment",
+                                "Est Interest Payment",
+                                "Total Monthly Payment",
+                                "Notes",
+                            ]
+                        if group_label == "Cash and CDs":
+                            return ["Principal"]
+                        if group_label in {"VN_Stock", "US_Stock", "Commodity", "Crypto"}:
                             cols = [
                                 c
                                 for c in rest_cols
                                 if c
                                 in {
-                                    "Principal",
-                                    "Investment Value",
+                                    "Ticker",
+                                    "Unit",
+                                    "Buy Price",
                                     "Current Price",
+                                    "Principal",
                                     "Current Value",
                                     "Unrealized P&L",
                                     "P&L %",
-                                    "Unit",
                                     "Notes",
                                 }
                             ]
                             if "Notes" in cols:
                                 cols = [c for c in cols if c != "Notes"] + ["Notes"]
                             return cols
-
-                        def _fmt_cell(col_name: str, value: Any) -> str:
-                            if value is None or value == "" or (isinstance(value, float) and pd.isna(value)):
-                                return "—"
-                            if col_name == "P&L %":
-                                return f"{float(value):.2f}%"
-                            if col_name in {
-                                "Principal",
-                                "Outstanding Balance",
-                                "Investment Value",
-                                "Current Value",
-                                "P&L",
-                                "Unrealized P&L",
-                                "Principal Payment",
-                                "Est Interest Payment",
-                                "Total Monthly Payment",
-                            }:
-                                return f"{int(round(float(value))):,}"
-                            if col_name == "Interest":
-                                return f"{int(round(float(value))):,}"
-                            if col_name == "Expected Coupon (Amount)":
-                                return f"{int(round(float(value))):,}"
-                            if col_name == "Buy Price":
-                                return f"{float(value):,.2f}"
-                            if col_name == "Current Price":
-                                return f"{float(value):,.2f}"
-                            if col_name == "Quantity":
-                                q = float(value)
-                                return f"{int(q):,}" if q.is_integer() else f"{q:,.2f}"
-                            return str(value)
-
-                        def _build_mobile_metric_pairs(
-                            row_item: Any,
-                            col_names: list[str],
-                            *,
-                            label_for_col: Any | None = None,
-                            max_cols: int = 8,
-                        ) -> list[tuple[str, str]]:
-                            pairs: list[tuple[str, str]] = []
-                            for name in col_names[:max_cols]:
-                                if name == "P&L %":
-                                    continue
-                                value_for_cell = row_item[name]
-                                if (
-                                    name == "Principal"
-                                    and str(row_item.get("Asset Type", "") or "").strip().lower() == "real estate"
-                                    and "Principal Display" in row_item
-                                ):
-                                    value_for_cell = row_item.get("Principal Display", row_item[name])
-                                label = label_for_col(name) if label_for_col else name
-                                display = _fmt_cell(name, value_for_cell)
-                                if name == "Unrealized P&L":
-                                    pct_raw = row_item.get("P&L %", "")
-                                    if pct_raw not in (None, "") and not (
-                                        isinstance(pct_raw, float) and pd.isna(pct_raw)
-                                    ):
-                                        display = f"{display} ({_fmt_cell('P&L %', pct_raw)})"
-                                pairs.append((label, display))
-                            return pairs
-
-                        grouped_active: dict[str, dict[str, list[tuple[Investment, Any]]]] = {}
-                        for i, inv in enumerate(inv_order):
-                            row = df.iloc[i]
-                            top_group = _active_group_label(str(row["Asset Type"]))
-                            sub_group = _active_subgroup_label(str(row["Asset Type"]))
-                            grouped_active.setdefault(top_group, {}).setdefault(sub_group, []).append((inv, row))
-                        total_active_principal = sum(
-                            float(row.get("Principal Display", row.get("Principal", 0)) or 0)
-                            for subgroup_map in grouped_active.values()
-                            for _, row in sum(subgroup_map.values(), [])
-                        )
-
-                        mobile_drill_key = f"mobile_portfolio_drill_{c.id}"
-
-                        def _render_active_inv_card(entry: tuple[Investment, Any], visible_cols: list[str]) -> None:
-                            inv_item, row_item = entry
-                            ticker_lbl = str(
-                                row_item.get("Ticker", "")
-                                or getattr(inv_item, "ticker_identifier", "")
-                                or ""
-                            ).strip()
-                            title_lbl = f"{row_item['Asset Type']}{f' · {ticker_lbl}' if ticker_lbl else ''}"
-                            st.markdown(f"**{title_lbl}**")
-                            render_mobile_kv_grid(_build_mobile_metric_pairs(row_item, visible_cols))
-                            ac1, ac2 = st.columns(2, gap="small")
-                            if ac1.button("Edit", key=f"portfolio_edit_mobile_{c.id}_{inv_item.id}"):
-                                suffix = f"_{c.id}_{inv_item.id}"
-                                for k in list(st.session_state.keys()):
-                                    if k.startswith("edit_") and k.endswith(suffix):
-                                        del st.session_state[k]
-                                st.session_state[f"edit_inv_target_{c.id}"] = inv_item.id
-                                st.session_state[f"edit_inv_picker_{c.id}"] = inv_item.id
-                                st.rerun()
-                            if bool(getattr(inv_item, "is_done", False)):
-                                if ac2.button("Active", key=f"mark_active_mobile_{c.id}_{inv_item.id}"):
-                                    inv_to_update = session.get(Investment, inv_item.id)
-                                    if inv_to_update:
-                                        inv_to_update.is_done = False
-                                        session.commit()
-                                    st.rerun()
-                            elif ac2.button("Done", key=f"mark_done_mobile_{c.id}_{inv_item.id}"):
-                                if not (
-                                    st.session_state.pending_done_investment_id == inv_item.id
-                                    and st.session_state.pending_done_client_id == c.id
-                                ):
-                                    st.session_state.pending_done_investment_id = inv_item.id
-                                    st.session_state.pending_done_client_id = c.id
-                                    st.rerun()
-                            if st.button("Delete", key=f"row_del_mobile_{c.id}_{inv_item.id}", type="primary"):
-                                st.session_state.pending_delete_investment_id = inv_item.id
-                                st.rerun()
-
-                        mobile_drill = st.session_state.get(mobile_drill_key) if mobile_ui else None
-                        if mobile_ui and mobile_drill:
-                            drill_group = str(mobile_drill.get("group", ""))
-                            drill_subgroup = str(mobile_drill.get("subgroup", ""))
-                            drill_inv_ids = {int(x) for x in mobile_drill.get("inv_ids", [])}
-                            detail_entries = [
-                                (inv, df.iloc[i])
-                                for i, inv in enumerate(inv_order)
-                                if inv.id in drill_inv_ids
+                        if group_label == "Bond":
+                            return [
+                                c
+                                for c in rest_cols
+                                if c
+                                in {
+                                    "Ticker",
+                                    "Unit",
+                                    "Principal",
+                                    "Expected Coupon (Amount)",
+                                    "Received Coupon (Amount)",
+                                    "YTM %",
+                                    "Maturity Date",
+                                    "Unrealized P&L",
+                                }
                             ]
-                            detail_visible_cols = _visible_cols_for_group(drill_subgroup)
-                            if st.button("← Back to portfolio", key=f"mobile_drill_back_{c.id}"):
-                                st.session_state.pop(mobile_drill_key, None)
-                                st.rerun()
-                            st.markdown(f"### {drill_subgroup}")
-                            st.caption(f"{drill_group} · {len(detail_entries)} holding(s)")
-                            render_two_column_cards(
-                                detail_entries,
-                                lambda entry: _render_active_inv_card(entry, detail_visible_cols),
+                        if group_label == "Term Deposit":
+                            return [
+                                c
+                                for c in rest_cols
+                                if c
+                                in {
+                                    "Principal",
+                                    "Buy Date",
+                                    "Tenor",
+                                    "Interest Rate %",
+                                    "Maturity Date",
+                                    "Interest",
+                                }
+                            ]
+                        if group_label == "Real Estate":
+                            return ["Principal", "Investment Value", "Current Value", "Unrealized P&L", "P&L %", "Notes"]
+                        cols = [
+                            c
+                            for c in rest_cols
+                            if c
+                            in {
+                                "Principal",
+                                "Investment Value",
+                                "Current Price",
+                                "Current Value",
+                                "Unrealized P&L",
+                                "P&L %",
+                                "Unit",
+                                "Notes",
+                            }
+                        ]
+                        if "Notes" in cols:
+                            cols = [c for c in cols if c != "Notes"] + ["Notes"]
+                        return cols
+
+                    def _fmt_cell(col_name: str, value: Any) -> str:
+                        if value is None or value == "" or (isinstance(value, float) and pd.isna(value)):
+                            return "—"
+                        if col_name == "P&L %":
+                            return f"{float(value):.2f}%"
+                        if col_name in {
+                            "Principal",
+                            "Outstanding Balance",
+                            "Investment Value",
+                            "Current Value",
+                            "P&L",
+                            "Unrealized P&L",
+                            "Principal Payment",
+                            "Est Interest Payment",
+                            "Total Monthly Payment",
+                        }:
+                            return f"{int(round(float(value))):,}"
+                        if col_name == "Interest":
+                            return f"{int(round(float(value))):,}"
+                        if col_name == "Expected Coupon (Amount)":
+                            return f"{int(round(float(value))):,}"
+                        if col_name == "Buy Price":
+                            return f"{float(value):,.2f}"
+                        if col_name == "Current Price":
+                            return f"{float(value):,.2f}"
+                        if col_name == "Quantity":
+                            q = float(value)
+                            return f"{int(q):,}" if q.is_integer() else f"{q:,.2f}"
+                        return str(value)
+
+                    def _build_mobile_metric_pairs(
+                        row_item: Any,
+                        col_names: list[str],
+                        *,
+                        label_for_col: Any | None = None,
+                        max_cols: int = 8,
+                    ) -> list[tuple[str, str]]:
+                        pairs: list[tuple[str, str]] = []
+                        for name in col_names[:max_cols]:
+                            if name == "P&L %":
+                                continue
+                            value_for_cell = row_item[name]
+                            if (
+                                name == "Principal"
+                                and str(row_item.get("Asset Type", "") or "").strip().lower() == "real estate"
+                                and "Principal Display" in row_item
+                            ):
+                                value_for_cell = row_item.get("Principal Display", row_item[name])
+                            label = label_for_col(name) if label_for_col else name
+                            display = _fmt_cell(name, value_for_cell)
+                            if name == "Unrealized P&L":
+                                pct_raw = row_item.get("P&L %", "")
+                                if pct_raw not in (None, "") and not (
+                                    isinstance(pct_raw, float) and pd.isna(pct_raw)
+                                ):
+                                    display = f"{display} ({_fmt_cell('P&L %', pct_raw)})"
+                            pairs.append((label, display))
+                        return pairs
+
+                    catalog_cards = build_subgroup_stats(grouped_active, equity_principal_total, disp_ccy)
+                    debt_share_pct = (debt_all / current_all * 100.0) if current_all > 0 else 0.0
+                    nav_value = current_all - debt_all
+
+                    st.markdown(client_dashboard_css(), unsafe_allow_html=True)
+                    apply_pending_client_tab(st, c.id)
+                    client_tab = st.radio(
+                        "Client section",
+                        ["Overview", "Portfolio", "Cashflow", "Past", "More"],
+                        horizontal=True,
+                        key=f"client_tab_{c.id}",
+                        label_visibility="collapsed",
+                    )
+
+                    if client_tab == "Overview":
+                        side_html = render_sidebar_html(
+                            disp_ccy=disp_ccy,
+                            total_assets=current_all,
+                            debt=debt_all,
+                            nav=nav_value,
+                            allocation_total=current_ex_re,
+                            allocation_pnl=pnl_ex_re,
+                            allocation_pnl_pct=pct_ex_re,
+                            allocation_cards=allocation_cards_ex_re_debt(catalog_cards),
+                        )
+                        catalog_cols = 2 if mobile_ui else 3
+                        col_chart, col_catalog = st.columns([1, 2.2], gap="medium")
+                        with col_chart:
+                            render_html_block(st, side_html)
+                        with col_catalog:
+                            render_catalog_streamlit(
+                                st,
+                                catalog_cards,
+                                client_id=c.id,
+                                disp_ccy=disp_ccy,
+                                mobile_drill_key=mobile_drill_key,
+                                cols_per_row=catalog_cols,
+                            )
+                        st.caption(f"Display: **VND** · FX 1 USD = {fx_rate:,.0f} VND · Realized P&L {format_display_money(realized_past_sum, disp_ccy, decimals=0)}")
+
+                    elif client_tab == "Portfolio":
+                        if df.empty:
+                            st.info("No active investments for this client.")
+                        else:
+                            if mobile_ui:
+                                st.caption("Tap a category to open holdings. Summary shows total, allocation, and P&L.")
+                            else:
+                                st.caption("Active investments grouped into Equities and Debts. Click a group to see details.")
+                            reset_done_key = st.session_state.get("done_checkbox_reset_key")
+                            if reset_done_key:
+                                if reset_done_key in st.session_state:
+                                    del st.session_state[reset_done_key]
+                                st.session_state.done_checkbox_reset_key = None
+                            rest_cols = [
+                                col
+                                for col in df.columns
+                                if col
+                                not in {
+                                    "Asset Type",
+                                    "Principal Display",
+                                    "Current Value Display",
+                                    "Unrealized P&L Display",
+                                }
+                            ]
+
+                            def _active_group_label(asset_name: str) -> str:
+                                a = (asset_name or "").strip().lower()
+                                return "Debts" if a == "debt" else "Equities"
+
+                            def _active_subgroup_label(asset_name: str) -> str:
+                                a = (asset_name or "").strip().lower()
+                                if a == "stock":
+                                    return "VN_Stock"
+                                if _is_cd_kind(a) or a == "cash":
+                                    return "Cash and CDs"
+                                if a == "debt":
+                                    return "Debt"
+                                return asset_name
+
+                            def _past_group_label(asset_name: str) -> str:
+                                a = (asset_name or "").strip().lower()
+                                if _is_cd_kind(a) or a == "cash":
+                                    return "Cash and CDs"
+                                return asset_name
+
+                            subgroup_order_rank = {
+                                "Cash and CDs": 1,
+                                "Term Deposit": 2,
+                                "Bond": 3,
+                                "VN_Stock": 4,
+                                "US_Stock": 5,
+                                "Crypto": 6,
+                                "Real Estate": 7,
+                            }
+
+                            def _subgroup_sort_key(name: str) -> tuple[int, str]:
+                                return (subgroup_order_rank.get(str(name), 999), str(name))
+
+                            def _visible_cols_for_group(group_label: str) -> list[str]:
+                                if group_label == "Debt":
+                                    return [
+                                        "Outstanding Balance",
+                                        "Interest Rate %",
+                                        "Principal Payment",
+                                        "Est Interest Payment",
+                                        "Total Monthly Payment",
+                                        "Notes",
+                                    ]
+                                if group_label == "Cash and CDs":
+                                    return ["Principal"]
+                                if group_label in {"VN_Stock", "US_Stock", "Commodity", "Crypto"}:
+                                    cols = [
+                                        c
+                                        for c in rest_cols
+                                        if c
+                                        in {
+                                            "Ticker",
+                                            "Unit",
+                                            "Buy Price",
+                                            "Current Price",
+                                            "Principal",
+                                            "Current Value",
+                                            "Unrealized P&L",
+                                            "P&L %",
+                                            "Notes",
+                                        }
+                                    ]
+                                    if "Notes" in cols:
+                                        cols = [c for c in cols if c != "Notes"] + ["Notes"]
+                                    return cols
+                                if group_label == "Bond":
+                                    return [
+                                        c
+                                        for c in rest_cols
+                                        if c
+                                        in {
+                                            "Ticker",
+                                            "Unit",
+                                            "Principal",
+                                            "Expected Coupon (Amount)",
+                                            "Received Coupon (Amount)",
+                                            "YTM %",
+                                            "Maturity Date",
+                                            "Unrealized P&L",
+                                        }
+                                    ]
+                                if group_label == "Term Deposit":
+                                    return [
+                                        c
+                                        for c in rest_cols
+                                        if c
+                                        in {
+                                            "Principal",
+                                            "Buy Date",
+                                            "Tenor",
+                                            "Interest Rate %",
+                                            "Maturity Date",
+                                            "Interest",
+                                        }
+                                    ]
+                                if group_label == "Real Estate":
+                                    return ["Principal", "Investment Value", "Current Value", "Unrealized P&L", "P&L %", "Notes"]
+                                # Equities default bucket.
+                                cols = [
+                                    c
+                                    for c in rest_cols
+                                    if c
+                                    in {
+                                        "Principal",
+                                        "Investment Value",
+                                        "Current Price",
+                                        "Current Value",
+                                        "Unrealized P&L",
+                                        "P&L %",
+                                        "Unit",
+                                        "Notes",
+                                    }
+                                ]
+                                if "Notes" in cols:
+                                    cols = [c for c in cols if c != "Notes"] + ["Notes"]
+                                return cols
+
+                            def _fmt_cell(col_name: str, value: Any) -> str:
+                                if value is None or value == "" or (isinstance(value, float) and pd.isna(value)):
+                                    return "—"
+                                if col_name == "P&L %":
+                                    return f"{float(value):.2f}%"
+                                if col_name in {
+                                    "Principal",
+                                    "Outstanding Balance",
+                                    "Investment Value",
+                                    "Current Value",
+                                    "P&L",
+                                    "Unrealized P&L",
+                                    "Principal Payment",
+                                    "Est Interest Payment",
+                                    "Total Monthly Payment",
+                                }:
+                                    return f"{int(round(float(value))):,}"
+                                if col_name == "Interest":
+                                    return f"{int(round(float(value))):,}"
+                                if col_name == "Expected Coupon (Amount)":
+                                    return f"{int(round(float(value))):,}"
+                                if col_name == "Buy Price":
+                                    return f"{float(value):,.2f}"
+                                if col_name == "Current Price":
+                                    return f"{float(value):,.2f}"
+                                if col_name == "Quantity":
+                                    q = float(value)
+                                    return f"{int(q):,}" if q.is_integer() else f"{q:,.2f}"
+                                return str(value)
+
+                            def _build_mobile_metric_pairs(
+                                row_item: Any,
+                                col_names: list[str],
+                                *,
+                                label_for_col: Any | None = None,
+                                max_cols: int = 8,
+                            ) -> list[tuple[str, str]]:
+                                pairs: list[tuple[str, str]] = []
+                                for name in col_names[:max_cols]:
+                                    if name == "P&L %":
+                                        continue
+                                    value_for_cell = row_item[name]
+                                    if (
+                                        name == "Principal"
+                                        and str(row_item.get("Asset Type", "") or "").strip().lower() == "real estate"
+                                        and "Principal Display" in row_item
+                                    ):
+                                        value_for_cell = row_item.get("Principal Display", row_item[name])
+                                    label = label_for_col(name) if label_for_col else name
+                                    display = _fmt_cell(name, value_for_cell)
+                                    if name == "Unrealized P&L":
+                                        pct_raw = row_item.get("P&L %", "")
+                                        if pct_raw not in (None, "") and not (
+                                            isinstance(pct_raw, float) and pd.isna(pct_raw)
+                                        ):
+                                            display = f"{display} ({_fmt_cell('P&L %', pct_raw)})"
+                                    pairs.append((label, display))
+                                return pairs
+
+                            grouped_active: dict[str, dict[str, list[tuple[Investment, Any]]]] = {}
+                            for i, inv in enumerate(inv_order):
+                                row = df.iloc[i]
+                                top_group = _active_group_label(str(row["Asset Type"]))
+                                sub_group = _active_subgroup_label(str(row["Asset Type"]))
+                                grouped_active.setdefault(top_group, {}).setdefault(sub_group, []).append((inv, row))
+                            total_active_principal = sum(
+                                float(row.get("Principal Display", row.get("Principal", 0)) or 0)
+                                for subgroup_map in grouped_active.values()
+                                for _, row in sum(subgroup_map.values(), [])
                             )
 
-                        for group_name, subgroup_map in grouped_active.items():
-                            if mobile_ui and mobile_drill:
-                                continue
-                            entries = sum(subgroup_map.values(), [])
-                            group_principal = sum(
-                                float(e[1].get("Principal Display", e[1].get("Principal", 0)) or 0) for e in entries
-                            )
-                            if group_name == "Equities":
-                                # Exclude Real Estate from Equities unrealized P&L header.
-                                group_pnl = sum(
-                                    float(
-                                        e[1].get(
-                                            "Unrealized P&L Display",
-                                            e[1].get("Unrealized P&L", 0),
-                                        )
-                                        or 0
-                                    )
-                                    for e in entries
-                                    if str(e[1].get("Asset Type", "") or "").strip().lower() != "real estate"
-                                )
-                                group_header = (
-                                    f"{group_name} ({len(entries)}) · Principal {disp_ccy} {group_principal:,.0f} · "
-                                    f"Unrealized P&L {disp_ccy} {group_pnl:,.0f}"
-                                )
-                            else:
-                                group_pnl = 0.0
-                                group_header = (
-                                    f"{group_name} ({len(entries)}) · Outstanding Balance {disp_ccy} {group_principal:,.0f}"
-                                )
-                            with st.expander(
-                                group_header,
-                                expanded=False,
-                            ):
-                                subgroup_items = (
-                                    [("Debt", entries)]
-                                    if group_name == "Debts"
-                                    else sorted(list(subgroup_map.items()), key=lambda x: _subgroup_sort_key(x[0]))
-                                )
+                            mobile_drill_key = f"mobile_portfolio_drill_{c.id}"
+
+                            def _render_active_inv_card(entry: tuple[Investment, Any], visible_cols: list[str]) -> None:
+                                inv_item, row_item = entry
+                                ticker_lbl = str(
+                                    row_item.get("Ticker", "")
+                                    or getattr(inv_item, "ticker_identifier", "")
+                                    or ""
+                                ).strip()
+                                title_lbl = f"{row_item['Asset Type']}{f' · {ticker_lbl}' if ticker_lbl else ''}"
+                                st.markdown(f"**{title_lbl}**")
+                                render_mobile_kv_grid(_build_mobile_metric_pairs(row_item, visible_cols))
+                                ac1, ac2 = st.columns(2, gap="small")
+                                if ac1.button("Edit", key=f"portfolio_edit_mobile_{c.id}_{inv_item.id}"):
+                                    suffix = f"_{c.id}_{inv_item.id}"
+                                    for k in list(st.session_state.keys()):
+                                        if k.startswith("edit_") and k.endswith(suffix):
+                                            del st.session_state[k]
+                                    st.session_state[f"edit_inv_target_{c.id}"] = inv_item.id
+                                    st.session_state[f"edit_inv_picker_{c.id}"] = inv_item.id
+                                    st.rerun()
+                                if bool(getattr(inv_item, "is_done", False)):
+                                    if ac2.button("Active", key=f"mark_active_mobile_{c.id}_{inv_item.id}"):
+                                        inv_to_update = session.get(Investment, inv_item.id)
+                                        if inv_to_update:
+                                            inv_to_update.is_done = False
+                                            session.commit()
+                                        st.rerun()
+                                elif ac2.button("Done", key=f"mark_done_mobile_{c.id}_{inv_item.id}"):
+                                    if not (
+                                        st.session_state.pending_done_investment_id == inv_item.id
+                                        and st.session_state.pending_done_client_id == c.id
+                                    ):
+                                        st.session_state.pending_done_investment_id = inv_item.id
+                                        st.session_state.pending_done_client_id = c.id
+                                        st.rerun()
+                                if st.button("Delete", key=f"row_del_mobile_{c.id}_{inv_item.id}", type="primary"):
+                                    st.session_state.pending_delete_investment_id = inv_item.id
+                                    st.rerun()
+
+                            catalog_drill = st.session_state.get(mobile_drill_key)
+                            if catalog_drill:
+                                drill_group = str(catalog_drill.get("group", ""))
+                                drill_subgroup = str(catalog_drill.get("subgroup", ""))
+                                drill_inv_ids = {int(x) for x in catalog_drill.get("inv_ids", [])}
+                                detail_entries = [
+                                    (inv, df.iloc[i])
+                                    for i, inv in enumerate(inv_order)
+                                    if inv.id in drill_inv_ids
+                                ]
+                                detail_visible_cols = _visible_cols_for_group(drill_subgroup)
+                                if st.button("← Back to asset catalog", key=f"mobile_drill_back_{c.id}"):
+                                    st.session_state.pop(mobile_drill_key, None)
+                                    queue_client_tab(st, c.id, "Overview")
+                                    st.rerun()
+                                st.markdown(f"### {drill_subgroup}")
+                                st.caption(f"{drill_group} · {len(detail_entries)} holding(s)")
                                 if mobile_ui:
-                                    subgroup_summaries: list[dict[str, Any]] = []
-                                    for subgroup_name, subgroup_entries in subgroup_items:
-                                        sub_principal = sum(
-                                            float(e[1].get("Principal Display", e[1].get("Principal", 0)) or 0)
-                                            for e in subgroup_entries
-                                        )
-                                        if group_name == "Debts":
-                                            sub_alloc_m: float | None = None
-                                            sub_pnl_m = 0.0
-                                        else:
-                                            sub_alloc_m = (
-                                                (sub_principal / equity_principal_total * 100.0)
-                                                if equity_principal_total > 0
-                                                else 0.0
+                                    render_two_column_cards(
+                                        detail_entries,
+                                        lambda entry: _render_active_inv_card(entry, detail_visible_cols),
+                                    )
+                                else:
+                                    for inv, row in detail_entries:
+                                        row_cols = st.columns([1.8, 0.45] + [1.35] * len(detail_visible_cols) + [0.7, 0.45])
+                                        row_cols[0].markdown(f"**{row['Asset Type']}**")
+                                        if row_cols[1].button("✏", key=f"drill_edit_{c.id}_{inv.id}"):
+                                            st.session_state[f"edit_inv_target_{c.id}"] = inv.id
+                                            queue_client_tab(st, c.id, "More")
+                                            st.rerun()
+                                        for j, name in enumerate(detail_visible_cols):
+                                            val = row[name]
+                                            if (
+                                                name == "Principal"
+                                                and str(row.get("Asset Type", "") or "").strip().lower() == "real estate"
+                                                and "Principal Display" in row
+                                            ):
+                                                val = row.get("Principal Display", row[name])
+                                            row_cols[j + 2].write(_fmt_cell(name, val))
+
+                            for group_name, subgroup_map in grouped_active.items():
+                                if catalog_drill:
+                                    continue
+                                entries = sum(subgroup_map.values(), [])
+                                group_principal = sum(
+                                    float(e[1].get("Principal Display", e[1].get("Principal", 0)) or 0) for e in entries
+                                )
+                                if group_name == "Equities":
+                                    # Exclude Real Estate from Equities unrealized P&L header.
+                                    group_pnl = sum(
+                                        float(
+                                            e[1].get(
+                                                "Unrealized P&L Display",
+                                                e[1].get("Unrealized P&L", 0),
                                             )
-                                            sub_pnl_m = sum(
-                                                float(
-                                                    e[1].get(
-                                                        "Unrealized P&L Display",
-                                                        e[1].get("Unrealized P&L", 0),
-                                                    )
-                                                    or 0
-                                                )
+                                            or 0
+                                        )
+                                        for e in entries
+                                        if str(e[1].get("Asset Type", "") or "").strip().lower() != "real estate"
+                                    )
+                                    group_header = (
+                                        f"{group_name} ({len(entries)}) · Principal {disp_ccy} {group_principal:,.0f} · "
+                                        f"Unrealized P&L {disp_ccy} {group_pnl:,.0f}"
+                                    )
+                                else:
+                                    group_pnl = 0.0
+                                    group_header = (
+                                        f"{group_name} ({len(entries)}) · Outstanding Balance {disp_ccy} {group_principal:,.0f}"
+                                    )
+                                with st.expander(
+                                    group_header,
+                                    expanded=False,
+                                ):
+                                    subgroup_items = (
+                                        [("Debt", entries)]
+                                        if group_name == "Debts"
+                                        else sorted(list(subgroup_map.items()), key=lambda x: _subgroup_sort_key(x[0]))
+                                    )
+                                    if mobile_ui:
+                                        subgroup_summaries: list[dict[str, Any]] = []
+                                        for subgroup_name, subgroup_entries in subgroup_items:
+                                            sub_principal = sum(
+                                                float(e[1].get("Principal Display", e[1].get("Principal", 0)) or 0)
                                                 for e in subgroup_entries
                                             )
-                                        subgroup_summaries.append(
-                                            {
-                                                "name": subgroup_name,
-                                                "entries": subgroup_entries,
-                                                "total": sub_principal,
-                                                "alloc": sub_alloc_m,
-                                                "pnl": sub_pnl_m,
-                                            }
-                                        )
-
-                                    def _render_subgroup_summary(card: dict[str, Any]) -> None:
-                                        st.markdown(f"**{card['name']}** · {len(card['entries'])} items")
-                                        alloc_txt = (
-                                            f"{float(card['alloc']):.1f}%"
-                                            if card.get("alloc") is not None
-                                            else "—"
-                                        )
-                                        render_mobile_kv_grid(
-                                            [
-                                                ("Total", f"{disp_ccy} {float(card['total']):,.0f}"),
-                                                ("Allocation", alloc_txt),
-                                                ("P&L", f"{disp_ccy} {float(card['pnl']):,.0f}"),
-                                            ]
-                                        )
-                                        if st.button(
-                                            "Open details",
-                                            key=f"mobile_open_{c.id}_{group_name}_{card['name']}",
-                                        ):
-                                            st.session_state[mobile_drill_key] = {
-                                                "group": group_name,
-                                                "subgroup": card["name"],
-                                                "inv_ids": [inv.id for inv, _ in card["entries"]],
-                                            }
-                                            st.rerun()
-
-                                    render_two_column_cards(subgroup_summaries, _render_subgroup_summary)
-                                else:
-                                    for subgroup_name, subgroup_entries in subgroup_items:
-                                        sub_principal = sum(
-                                            float(e[1].get("Principal Display", e[1].get("Principal", 0)) or 0)
-                                            for e in subgroup_entries
-                                        )
-                                        visible_cols = _visible_cols_for_group(subgroup_name)
-                                        if group_name == "Debts":
-                                            st.caption(f"Outstanding Balance {disp_ccy} {sub_principal:,.0f}")
-                                            table_container = st.container()
-                                        else:
-                                            sub_alloc = (
-                                                (sub_principal / equity_principal_total * 100.0)
-                                                if equity_principal_total > 0
-                                                else 0.0
-                                            )
-                                            sub_pnl = sum(
-                                                float(e[1].get("Unrealized P&L", 0) or 0) for e in subgroup_entries
-                                            )
-                                            sub_title = (
-                                                f"{subgroup_name} ({len(subgroup_entries)}) · Principal {disp_ccy} {sub_principal:,.0f} · "
-                                                f"Allocation {sub_alloc:.1f}%"
-                                            )
-                                            if str(subgroup_name).strip().lower() not in {"real estate", "cash and cds"}:
-                                                sub_ccy = _default_currency_for_asset(str(subgroup_name))
-                                                sub_title += f" · Unrealized P&L {sub_ccy} {sub_pnl:,.0f}"
-                                            table_container = st.expander(
-                                                sub_title,
-                                                expanded=False,
-                                            )
-                                        with table_container:
-                                            header = st.columns([1.8, 0.45] + [1.35] * len(visible_cols) + [0.7, 0.45])
-                                            header[0].markdown("**Asset Type**")
-                                            header[1].markdown("** **")
-                                            for hi, name in enumerate(visible_cols):
-                                                header[hi + 2].markdown(f"**{name}**")
-                                            header[-2].markdown("**Done**")
-                                            header[-1].markdown("** **")
-                                            for inv, row in subgroup_entries:
-                                                row_cols = st.columns([1.8, 0.45] + [1.35] * len(visible_cols) + [0.7, 0.45])
-                                                row_cols[0].markdown(
-                                                    f'<span title="Asset type">{row["Asset Type"]}</span>',
-                                                    unsafe_allow_html=True,
+                                            if group_name == "Debts":
+                                                sub_alloc_m: float | None = None
+                                                sub_pnl_m = 0.0
+                                            else:
+                                                sub_alloc_m = (
+                                                    (sub_principal / equity_principal_total * 100.0)
+                                                    if equity_principal_total > 0
+                                                    else 0.0
                                                 )
-                                                if row_cols[1].button(
-                                                    "✏",
-                                                    key=f"portfolio_edit_{c.id}_{inv.id}",
-                                                    help="Edit this investment",
-                                                ):
-                                                    suffix = f"_{c.id}_{inv.id}"
-                                                    for k in list(st.session_state.keys()):
-                                                        if k.startswith("edit_") and k.endswith(suffix):
-                                                            del st.session_state[k]
-                                                    st.session_state[f"edit_inv_target_{c.id}"] = inv.id
-                                                    st.session_state[f"edit_inv_picker_{c.id}"] = inv.id
-                                                    st.rerun()
-                                                for j, name in enumerate(visible_cols):
-                                                    value_for_cell = row[name]
-                                                    if (
-                                                        name == "Principal"
-                                                        and str(row.get("Asset Type", "") or "").strip().lower() == "real estate"
-                                                        and "Principal Display" in row
+                                                sub_pnl_m = sum(
+                                                    float(
+                                                        e[1].get(
+                                                            "Unrealized P&L Display",
+                                                            e[1].get("Unrealized P&L", 0),
+                                                        )
+                                                        or 0
+                                                    )
+                                                    for e in subgroup_entries
+                                                )
+                                            subgroup_summaries.append(
+                                                {
+                                                    "name": subgroup_name,
+                                                    "entries": subgroup_entries,
+                                                    "total": sub_principal,
+                                                    "alloc": sub_alloc_m,
+                                                    "pnl": sub_pnl_m,
+                                                }
+                                            )
+
+                                        def _render_subgroup_summary(card: dict[str, Any]) -> None:
+                                            st.markdown(f"**{card['name']}** · {len(card['entries'])} items")
+                                            alloc_txt = (
+                                                f"{float(card['alloc']):.1f}%"
+                                                if card.get("alloc") is not None
+                                                else "—"
+                                            )
+                                            render_mobile_kv_grid(
+                                                [
+                                                    ("Total", f"{disp_ccy} {float(card['total']):,.0f}"),
+                                                    ("Allocation", alloc_txt),
+                                                    ("P&L", f"{disp_ccy} {float(card['pnl']):,.0f}"),
+                                                ]
+                                            )
+                                            if st.button(
+                                                "Open details",
+                                                key=f"mobile_open_{c.id}_{group_name}_{card['name']}",
+                                            ):
+                                                st.session_state[mobile_drill_key] = {
+                                                    "group": group_name,
+                                                    "subgroup": card["name"],
+                                                    "inv_ids": [inv.id for inv, _ in card["entries"]],
+                                                }
+                                                st.rerun()
+
+                                        render_two_column_cards(subgroup_summaries, _render_subgroup_summary)
+                                    else:
+                                        for subgroup_name, subgroup_entries in subgroup_items:
+                                            sub_principal = sum(
+                                                float(e[1].get("Principal Display", e[1].get("Principal", 0)) or 0)
+                                                for e in subgroup_entries
+                                            )
+                                            visible_cols = _visible_cols_for_group(subgroup_name)
+                                            if group_name == "Debts":
+                                                st.caption(f"Outstanding Balance {disp_ccy} {sub_principal:,.0f}")
+                                                table_container = st.container()
+                                            else:
+                                                sub_alloc = (
+                                                    (sub_principal / equity_principal_total * 100.0)
+                                                    if equity_principal_total > 0
+                                                    else 0.0
+                                                )
+                                                sub_pnl = sum(
+                                                    float(e[1].get("Unrealized P&L", 0) or 0) for e in subgroup_entries
+                                                )
+                                                sub_title = (
+                                                    f"{subgroup_name} ({len(subgroup_entries)}) · Principal {disp_ccy} {sub_principal:,.0f} · "
+                                                    f"Allocation {sub_alloc:.1f}%"
+                                                )
+                                                if str(subgroup_name).strip().lower() not in {"real estate", "cash and cds"}:
+                                                    sub_ccy = _default_currency_for_asset(str(subgroup_name))
+                                                    sub_title += f" · Unrealized P&L {sub_ccy} {sub_pnl:,.0f}"
+                                                table_container = st.expander(
+                                                    sub_title,
+                                                    expanded=False,
+                                                )
+                                            with table_container:
+                                                header = st.columns([1.8, 0.45] + [1.35] * len(visible_cols) + [0.7, 0.45])
+                                                header[0].markdown("**Asset Type**")
+                                                header[1].markdown("** **")
+                                                for hi, name in enumerate(visible_cols):
+                                                    header[hi + 2].markdown(f"**{name}**")
+                                                header[-2].markdown("**Done**")
+                                                header[-1].markdown("** **")
+                                                for inv, row in subgroup_entries:
+                                                    row_cols = st.columns([1.8, 0.45] + [1.35] * len(visible_cols) + [0.7, 0.45])
+                                                    row_cols[0].markdown(
+                                                        f'<span title="Asset type">{row["Asset Type"]}</span>',
+                                                        unsafe_allow_html=True,
+                                                    )
+                                                    if row_cols[1].button(
+                                                        "✏",
+                                                        key=f"portfolio_edit_{c.id}_{inv.id}",
+                                                        help="Edit this investment",
                                                     ):
-                                                        value_for_cell = row.get("Principal Display", row[name])
-                                                    cell_text = _fmt_cell(name, value_for_cell)
-                                                    row_cols[j + 2].write(cell_text)
-                                                done_key = f"done_inv_{c.id}_{inv.id}"
-                                                done_checked = row_cols[-2].checkbox(
-                                                    "Done",
-                                                    value=bool(getattr(inv, "is_done", False)),
-                                                    key=done_key,
-                                                    label_visibility="collapsed",
-                                                )
-                                                if done_checked != bool(getattr(inv, "is_done", False)):
-                                                    if done_checked:
-                                                        if not (
-                                                            st.session_state.pending_done_investment_id == inv.id
-                                                            and st.session_state.pending_done_client_id == c.id
+                                                        suffix = f"_{c.id}_{inv.id}"
+                                                        for k in list(st.session_state.keys()):
+                                                            if k.startswith("edit_") and k.endswith(suffix):
+                                                                del st.session_state[k]
+                                                        st.session_state[f"edit_inv_target_{c.id}"] = inv.id
+                                                        st.session_state[f"edit_inv_picker_{c.id}"] = inv.id
+                                                        st.rerun()
+                                                    for j, name in enumerate(visible_cols):
+                                                        value_for_cell = row[name]
+                                                        if (
+                                                            name == "Principal"
+                                                            and str(row.get("Asset Type", "") or "").strip().lower() == "real estate"
+                                                            and "Principal Display" in row
                                                         ):
-                                                            st.session_state.pending_done_investment_id = inv.id
-                                                            st.session_state.pending_done_client_id = c.id
-                                                            st.rerun()
-                                                    else:
-                                                        inv_to_update = session.get(Investment, inv.id)
-                                                        if inv_to_update:
-                                                            inv_to_update.is_done = False
-                                                            session.commit()
-                                                            st.rerun()
-                                                if row_cols[-1].button("✖", key=f"row_del_inv_{c.id}_{inv.id}", type="primary"):
-                                                    st.session_state.pending_delete_investment_id = inv.id
-                                                    st.rerun()
-                        if "Debts" not in grouped_active:
-                            st.caption("No debt.")
+                                                            value_for_cell = row.get("Principal Display", row[name])
+                                                        cell_text = _fmt_cell(name, value_for_cell)
+                                                        row_cols[j + 2].write(cell_text)
+                                                    done_key = f"done_inv_{c.id}_{inv.id}"
+                                                    done_checked = row_cols[-2].checkbox(
+                                                        "Done",
+                                                        value=bool(getattr(inv, "is_done", False)),
+                                                        key=done_key,
+                                                        label_visibility="collapsed",
+                                                    )
+                                                    if done_checked != bool(getattr(inv, "is_done", False)):
+                                                        if done_checked:
+                                                            if not (
+                                                                st.session_state.pending_done_investment_id == inv.id
+                                                                and st.session_state.pending_done_client_id == c.id
+                                                            ):
+                                                                st.session_state.pending_done_investment_id = inv.id
+                                                                st.session_state.pending_done_client_id = c.id
+                                                                st.rerun()
+                                                        else:
+                                                            inv_to_update = session.get(Investment, inv.id)
+                                                            if inv_to_update:
+                                                                inv_to_update.is_done = False
+                                                                session.commit()
+                                                                st.rerun()
+                                                    if row_cols[-1].button("✖", key=f"row_del_inv_{c.id}_{inv.id}", type="primary"):
+                                                        st.session_state.pending_delete_investment_id = inv.id
+                                                        st.rerun()
+                            if "Debts" not in grouped_active:
+                                st.caption("No debt.")
 
                     if (
                         st.session_state.pending_done_investment_id is not None
@@ -1566,101 +1681,35 @@ button[kind="primary"] {
                         else:
                             st.session_state.pending_delete_investment_id = None
 
-                    st.markdown("#### Misc")
-                    with st.expander("Obligations", expanded=False):
-                            obligation_edit_key = f"edit_obligation_{c.id}"
-                            obligation_type_key = f"obligation_type_{c.id}"
-                            has_home_insurance_saved = getattr(c, "home_insurance_expiry_date", None) is not None
-                            if obligation_edit_key not in st.session_state:
-                                st.session_state[obligation_edit_key] = False
-                            if obligation_type_key not in st.session_state:
-                                st.session_state[obligation_type_key] = "Home Insurance" if has_home_insurance_saved else "None"
-                            elif st.session_state.get(obligation_type_key) not in {"None", "Home Insurance"}:
-                                st.session_state[obligation_type_key] = "Home Insurance" if has_home_insurance_saved else "None"
-
-                            if has_home_insurance_saved and not st.session_state[obligation_edit_key]:
-                                st.markdown("**Obligation Type:** Home Insurance")
-                                ob_c1, ob_c2, ob_c3, ob_c4 = st.columns([2, 2, 2, 2])
-                                with ob_c1:
-                                    st.caption("Amount Covered")
-                                    st.write(f"{float(getattr(c, 'home_insurance_amount_covered', 0.0) or 0.0):,.0f}")
-                                with ob_c2:
-                                    st.caption("Expiry Date")
-                                    st.write(iso_date_or_empty(getattr(c, "home_insurance_expiry_date", None)))
-                                with ob_c3:
-                                    st.caption("Insured Premium")
-                                    st.write(f"{float(getattr(c, 'home_insurance_insured_premium', 0.0) or 0.0):,.0f}")
-                                with ob_c4:
-                                    st.caption("Actions")
-                                    if st.button("✏ Edit obligation", key=f"edit_obligation_btn_{c.id}"):
-                                        st.session_state[obligation_edit_key] = True
-                                        st.session_state[obligation_type_key] = "Home Insurance" if has_home_insurance_saved else "None"
-                                        st.rerun()
-                            elif has_home_insurance_saved and st.session_state[obligation_edit_key]:
-                                with st.form(f"obligations_form_{c.id}", clear_on_submit=False):
-                                    obligation_type = st.selectbox(
-                                        "Obligation Type",
-                                        ["None", "Home Insurance"],
-                                        key=obligation_type_key,
-                                    )
-                                    amount_covered = 0.0
-                                    expiry_date = date.today()
-                                    insured_premium = 0.0
-                                    if obligation_type == "Home Insurance":
-                                        default_expiry = getattr(c, "home_insurance_expiry_date", None) or date.today()
-                                        amount_covered_default = float(getattr(c, "home_insurance_amount_covered", None) or 0.0)
-                                        insured_premium_default = float(getattr(c, "home_insurance_insured_premium", None) or 0.0)
-                                        hi_col1, hi_col2, hi_col3 = st.columns(3)
-                                        with hi_col1:
-                                            amount_covered = st.number_input(
-                                                "Amount Covered",
-                                                min_value=0.0,
-                                                value=amount_covered_default,
-                                                step=1000.0,
-                                                key=f"home_insurance_amount_covered_{c.id}",
-                                            )
-                                        with hi_col2:
-                                            expiry_date = st.date_input(
-                                                "Expiry Date",
-                                                value=default_expiry,
-                                                key=f"home_insurance_expiry_date_{c.id}",
-                                            )
-                                        with hi_col3:
-                                            insured_premium = st.number_input(
-                                                "Insured Premium",
-                                                min_value=0.0,
-                                                value=insured_premium_default,
-                                                step=100.0,
-                                                key=f"home_insurance_insured_premium_{c.id}",
-                                            )
-                                    save_col, cancel_col = st.columns([1, 1])
-                                    with save_col:
-                                        submitted_obligations = st.form_submit_button("Save obligations")
-                                    with cancel_col:
-                                        cancel_obligations = st.form_submit_button("Cancel")
-                                    if cancel_obligations:
-                                        st.session_state[obligation_edit_key] = False
-                                        st.rerun()
-                                    if submitted_obligations:
-                                        client_to_update = session.get(Client, c.id)
-                                        if client_to_update:
-                                            if obligation_type == "Home Insurance":
-                                                client_to_update.home_insurance_amount_covered = float(amount_covered)
-                                                client_to_update.home_insurance_expiry_date = expiry_date
-                                                client_to_update.home_insurance_insured_premium = float(insured_premium)
-                                                st.success("Home insurance obligations updated.")
-                                            else:
-                                                client_to_update.home_insurance_amount_covered = None
-                                                client_to_update.home_insurance_expiry_date = None
-                                                client_to_update.home_insurance_insured_premium = None
-                                                st.success("Obligations cleared.")
-                                            session.commit()
-                                        st.session_state[obligation_edit_key] = False
-                                        st.rerun()
-                            else:
-                                st.caption("No obligations yet.")
-
-                    with st.expander("Cashflow", expanded=False):
+                    elif client_tab == "Cashflow":
+                        pct_ex_cf = f" ({pct_ex_re:.2f}%)" if pct_ex_re is not None else ""
+                        cf_kpi_cols = st.columns(4 if not mobile_ui else 2)
+                        cf_kpis = [
+                            ("Monthly incomes", format_display_money(monthly_income_total, disp_ccy, decimals=0)),
+                            ("Monthly obligations", format_display_money(monthly_obligations_total, disp_ccy, decimals=0)),
+                            ("Net cashflow", format_display_money(net_cashflow, disp_ccy, decimals=0)),
+                            ("Income / obligations", cashflow_ratio),
+                        ]
+                        for col, (lbl, val) in zip(cf_kpi_cols, cf_kpis):
+                            with col:
+                                st.markdown(
+                                    f'<div class="crm-kpi"><div class="lbl">{lbl}</div><div class="val">{val}</div></div>',
+                                    unsafe_allow_html=True,
+                                )
+                        ex_kpi_cols = st.columns(4 if not mobile_ui else 2)
+                        ex_kpis = [
+                            ("Ex-RE principal", format_display_money(principal_ex_re, disp_ccy, decimals=0)),
+                            ("Ex-RE current", format_display_money(current_ex_re, disp_ccy, decimals=0)),
+                            ("Ex-RE unrealized P&L", f"{format_display_money(pnl_ex_re, disp_ccy, decimals=0)}{pct_ex_cf}"),
+                            ("Equity / debt", inc_ratio),
+                        ]
+                        for col, (lbl, val) in zip(ex_kpi_cols, ex_kpis):
+                            with col:
+                                st.markdown(
+                                    f'<div class="crm-kpi"><div class="lbl">{lbl}</div><div class="val">{val}</div></div>',
+                                    unsafe_allow_html=True,
+                                )
+                        st.markdown("#### Cashflow")
                         income_edit_key = f"edit_income_target_{c.id}"
                         client_incomes = [
                             inc for inc in incomes
@@ -1865,705 +1914,800 @@ button[kind="primary"] {
                             else:
                                 st.session_state[income_edit_key] = None
 
-
-                    st.markdown("#### Past Investments/Past Activities")
-                    past_done_incomes = [
-                        inc for inc in incomes
-                        if inc.client_id == c.id and bool(getattr(inc, "is_done", False))
-                    ]
-                    if not past_invs and not past_done_incomes:
-                        st.caption("No past investments or activities.")
-                    else:
-                        if past_invs:
-                            df_past, past_order = client_portfolio_table(
-                                c,
-                                past_invs,
-                                price_map,
-                                usd_vnd_rate=fx_rate,
-                                display_currency=disp_ccy,
-                            )
-                            closing_value = pd.to_numeric(
-                                df_past.get("Current Value Display", df_past.get("Current Value")),
-                                errors="coerce",
-                            ).fillna(0.0)
-                            principal_disp_s = pd.to_numeric(df_past.get("Principal Display"), errors="coerce").fillna(0.0)
-                            realized_pnl = closing_value - principal_disp_s
-                            realized_pct = realized_pnl.divide(principal_disp_s.where(principal_disp_s != 0), fill_value=0.0) * 100.0
-                            df_past["Unrealized P&L"] = realized_pnl.round(0)
-                            df_past["P&L %"] = realized_pct
-                            past_cols = [
-                                col
-                                for col in df_past.columns
-                                if col
-                                not in {
-                                    "Asset Type",
-                                    "Principal Display",
-                                    "Current Value Display",
-                                    "Unrealized P&L Display",
-                                }
-                            ]
-                            grouped_past: dict[str, list[tuple[Investment, Any]]] = {}
-                            for i, inv in enumerate(past_order):
-                                row = df_past.iloc[i]
-                                grouped_past.setdefault(_past_group_label(str(row["Asset Type"])), []).append((inv, row))
-
-                            for group_name, entries in sorted(grouped_past.items(), key=lambda x: _subgroup_sort_key(x[0])):
-                                visible_past_cols = [c for c in _visible_cols_for_group(group_name) if c in past_cols]
-                                with st.expander(f"{group_name} ({len(entries)})", expanded=False):
-                                    if mobile_ui:
-                                        def _render_past_inv_card(entry: tuple[Investment, Any]) -> None:
-                                            inv_item, row_item = entry
-                                            ticker_lbl = str(
-                                                row_item.get("Ticker", "")
-                                                or getattr(inv_item, "ticker_identifier", "")
-                                                or ""
-                                            ).strip()
-                                            st.markdown(
-                                                f"**{row_item['Asset Type']}"
-                                                f"{f' · {ticker_lbl}' if ticker_lbl else ''}**"
-                                            )
-                                            def _past_col_label(col: str) -> str:
-                                                if col == "Current Price":
-                                                    return "Closing Price"
-                                                if col == "Current Value":
-                                                    return "Closing Value"
-                                                if col == "Unrealized P&L":
-                                                    return "Realized P&L"
-                                                return col
-
-                                            render_mobile_kv_grid(
-                                                _build_mobile_metric_pairs(
-                                                    row_item,
-                                                    visible_past_cols,
-                                                    label_for_col=_past_col_label,
-                                                )
-                                            )
-                                            if st.button("↩ Active", key=f"rollback_inv_mobile_{c.id}_{inv_item.id}"):
-                                                inv_to_restore = session.get(Investment, inv_item.id)
-                                                if inv_to_restore:
-                                                    inv_to_restore.is_done = False
-                                                    session.commit()
-                                                    st.success("Investment moved back to active.")
-                                                st.rerun()
-
-                                        render_two_column_cards(entries, _render_past_inv_card)
-                                    else:
-                                        past_header = st.columns([2.1] + [1.1] * len(visible_past_cols) + [1.0])
-                                        past_header[0].markdown("**Asset Type**")
-                                        for hi, name in enumerate(visible_past_cols):
-                                            display_name = (
-                                                "Closing Price"
-                                                if name == "Current Price"
-                                                else "Closing Value"
-                                                if name == "Current Value"
-                                                else "Realized P&L"
-                                                if name == "Unrealized P&L"
-                                                else name
-                                            )
-                                            past_header[hi + 1].markdown(f"**{display_name}**")
-                                        past_header[-1].markdown("**Rollback**")
-                                        for inv, row in entries:
-                                            row_cols = st.columns([2.1] + [1.1] * len(visible_past_cols) + [1.0])
-                                            row_cols[0].write(row["Asset Type"])
-                                            for j, name in enumerate(visible_past_cols):
-                                                row_cols[j + 1].write(_fmt_cell(name, row[name]))
-                                            if row_cols[-1].button("↩ Active", key=f"rollback_inv_{c.id}_{inv.id}"):
-                                                inv_to_restore = session.get(Investment, inv.id)
-                                                if inv_to_restore:
-                                                    inv_to_restore.is_done = False
-                                                    session.commit()
-                                                    st.success("Investment moved back to active.")
-                                                st.rerun()
-
-                        if past_done_incomes:
-                            with st.expander(f"Past Activities ({len(past_done_incomes)})", expanded=False):
-                                if mobile_ui:
-                                    def _render_past_activity_card(inc: Income) -> None:
-                                        st.markdown(f"**{inc.income_type}**")
-                                        render_mobile_kv_grid(
-                                            [
-                                                ("Amount", f"{float(inc.amount or 0.0):,.0f}"),
-                                                ("Concurrent", "Yes" if inc.concurrent else "No"),
-                                                (
-                                                    "Mode",
-                                                    getattr(inc, "income_mode", "Actual") or "Actual",
-                                                ),
-                                                ("Note", inc.note or "—"),
-                                            ]
-                                        )
-                                        if st.button("↩ Active", key=f"rollback_income_mobile_{c.id}_{inc.id}"):
-                                            inc_obj = session.get(Income, inc.id)
-                                            if inc_obj:
-                                                inc_obj.is_done = False
-                                                session.commit()
-                                                st.success("Activity moved back to active.")
-                                            st.rerun()
-
-                                    render_two_column_cards(past_done_incomes, _render_past_activity_card)
-                                else:
-                                    pa_head = st.columns([1.4, 1.4, 1.0, 1.0, 2.4, 1.0])
-                                    pa_head[0].markdown("**Type**")
-                                    pa_head[1].markdown("**Amount**")
-                                    pa_head[2].markdown("**Concurrent**")
-                                    pa_head[3].markdown("**Mode**")
-                                    pa_head[4].markdown("**Note**")
-                                    pa_head[5].markdown("**Rollback**")
-                                    for inc in past_done_incomes:
-                                        rc = st.columns([1.4, 1.4, 1.0, 1.0, 2.4, 1.0])
-                                        rc[0].write(inc.income_type)
-                                        rc[1].write(f"{float(inc.amount or 0.0):,.0f}")
-                                        rc[2].write("Yes" if inc.concurrent else "No")
-                                        rc[3].write(getattr(inc, "income_mode", "Actual") or "Actual")
-                                        rc[4].write(inc.note or "—")
-                                        if rc[5].button("↩ Active", key=f"rollback_income_{c.id}_{inc.id}"):
-                                            inc_obj = session.get(Income, inc.id)
-                                            if inc_obj:
-                                                inc_obj.is_done = False
-                                                session.commit()
-                                                st.success("Activity moved back to active.")
-                                            st.rerun()
-                    selected_edit_id = st.session_state.get(f"edit_inv_target_{c.id}")
-                    if selected_edit_id is not None:
-                        inv_options = sorted(invs_all, key=lambda x: x.id)
-                        if inv_options:
-                            st.markdown("#### Edit investment")
-                            picker_key = f"edit_inv_picker_{c.id}"
-                            if st.session_state.get(picker_key) != selected_edit_id:
-                                st.session_state[picker_key] = selected_edit_id
-                            inv_id = st.selectbox(
-                                "Select investment",
-                                [inv.id for inv in inv_options],
-                                format_func=lambda i: f"{session.get(Investment, i).asset_type} {session.get(Investment, i).ticker_identifier or ''} (Qty {session.get(Investment, i).quantity})",
-                                key=picker_key,
-                            )
-                            st.session_state[f"edit_inv_target_{c.id}"] = inv_id
-                            inv = session.get(Investment, inv_id)
-                            with st.form(f"edit_inv_form_{c.id}_{inv_id}", clear_on_submit=False):
-                                norm_type = _normalize_asset_type_name(inv.asset_type)
-                                asset_type = st.selectbox(
-                                    "Asset Type",
-                                    ASSET_TYPES,
-                                    index=ASSET_TYPES.index(norm_type) if norm_type in ASSET_TYPES else 0,
-                                    key=f"edit_asset_type_{c.id}_{inv_id}",
+                    elif client_tab == "Past":
+                        st.markdown("#### Past Investments/Past Activities")
+                        past_done_incomes = [
+                            inc for inc in incomes
+                            if inc.client_id == c.id and bool(getattr(inc, "is_done", False))
+                        ]
+                        if not past_invs and not past_done_incomes:
+                            st.caption("No past investments or activities.")
+                        else:
+                            if past_invs:
+                                df_past, past_order = client_portfolio_table(
+                                    c,
+                                    past_invs,
+                                    price_map,
+                                    usd_vnd_rate=fx_rate,
+                                    display_currency=disp_ccy,
                                 )
-                                asset_kind = asset_type.lower()
-                                is_cd = _is_cd_kind(asset_kind)
-                                is_td = asset_kind == "term deposit"
-                                is_bond = asset_kind == "bond"
-                                is_stock = asset_kind in {"stock", "vn_stock", "us_stock", "commodity"}
-                                is_real_estate = asset_kind == "real estate"
-                                is_debt = asset_kind == "debt"
-                                is_cash = asset_kind == "cash"
-                                currency = _default_currency_for_asset(asset_type)
-                                st.caption(f"Currency: {currency} (auto by asset type)")
-                                ticker_identifier = inv.ticker_identifier or ""
-                                ticker_name = inv.ticker_name or ""
-                                quantity = float(inv.quantity)
-                                principal = float(inv.principal) if inv.principal is not None else None
-                                purchase_price = float(inv.purchase_price)
-                                purchase_date = None
-                                tenor = None
-                                interest_rate = None
-                                expected_coupon = None
-                                received_coupon = None
-                                unit = None
-                                ytm = None
-                                current_price = None
-                                maturity_date = None
-                                principal_payment = None
-                                if is_cd:
-                                    principal = st.number_input(
-                                        "Principal", min_value=0.0, value=float(inv.principal or 0.0), step=1000.0, key=f"edit_cd_principal_{c.id}_{inv_id}"
-                                    )
-                                    purchase_date = st.date_input(
-                                        "Purchase Date", value=inv.purchase_date or date.today(), key=f"edit_cd_pdate_{c.id}_{inv_id}"
-                                    )
-                                    quantity = 1.0
-                                    ticker_identifier = ""
-                                    purchase_price = 0.0
-                                elif is_td:
-                                    principal = st.number_input(
-                                        "Principal", min_value=0.0, value=float(inv.principal or 0.0), step=1000.0, key=f"edit_td_principal_{c.id}_{inv_id}"
-                                    )
-                                    purchase_date = st.date_input(
-                                        "Buy Date", value=inv.purchase_date or date.today(), key=f"edit_td_pdate_{c.id}_{inv_id}"
-                                    )
-                                    tenor_default = inv.tenor if inv.tenor in TERM_TENOR_OPTIONS else TERM_TENOR_OPTIONS[0]
-                                    tenor = st.selectbox("Tenor", TERM_TENOR_OPTIONS, index=TERM_TENOR_OPTIONS.index(tenor_default), key=f"edit_td_tenor_{c.id}_{inv_id}")
-                                    interest_rate = st.number_input(
-                                        "Interest Rate (%)",
-                                        min_value=0.0,
-                                        max_value=100.0,
-                                        value=float(inv.interest_rate or 0.0),
-                                        step=0.1,
-                                        key=f"edit_td_ir_{c.id}_{inv_id}",
-                                    )
-                                    maturity_date = _add_months(purchase_date, int(tenor.split()[0]))
-                                    st.caption(f"Maturity Date (auto): {maturity_date.isoformat()}")
-                                    td_days = max((maturity_date - purchase_date).days, 0)
-                                    td_interest = float(principal) * (float(interest_rate) / 100.0) / 365.0 * float(td_days)
-                                    st.caption(f"Interest (auto): {currency} {td_interest:,.0f}")
-                                    quantity = 1.0
-                                    ticker_identifier = ""
-                                    purchase_price = 0.0
-                                elif is_bond:
-                                    ticker_name = st.text_input(
-                                        "Ticker",
-                                        value=inv.ticker_name or "",
-                                        key=f"edit_bond_ticker_name_{c.id}_{inv_id}",
-                                    )
-                                    unit = st.number_input(
-                                        "Unit", min_value=0.0, value=float(inv.unit or 0.0), step=1.0, key=f"edit_bond_unit_{c.id}_{inv_id}"
-                                    )
-                                    purchase_date = st.date_input(
-                                        "Purchase Date", value=inv.purchase_date or date.today(), key=f"edit_bond_pdate_{c.id}_{inv_id}"
-                                    )
-                                    principal = st.number_input(
-                                        "Principal",
-                                        min_value=0.0,
-                                        value=float(inv.principal or 0.0),
-                                        step=1000.0,
-                                        key=f"edit_bond_principal_{c.id}_{inv_id}",
-                                    )
-                                    purchase_price = (float(principal) / float(unit)) if float(unit) > 0 else 0.0
-                                    st.caption(f"Buy Price (auto) = {purchase_price:,.2f}")
-                                    ytm = st.number_input(
-                                        "YTM (%)",
-                                        min_value=0.0,
-                                        max_value=100.0,
-                                        value=float(inv.ytm or 0.0),
-                                        step=0.1,
-                                        key=f"edit_bond_ytm_{c.id}_{inv_id}",
-                                    )
-                                    current_price = st.number_input(
-                                        "Current Price",
-                                        min_value=0.0,
-                                        value=float(inv.current_price or 0.0),
-                                        step=0.01,
-                                        key=f"edit_bond_current_price_{c.id}_{inv_id}",
-                                    )
-                                    expected_coupon = st.number_input(
-                                        "Expected Coupon (Amount)",
-                                        min_value=0.0,
-                                        value=float(inv.expected_coupon or 0.0),
-                                        step=0.01,
-                                        key=f"edit_coupon_{c.id}_{inv_id}",
-                                    )
-                                    expected_cashflow_to_maturity = float(expected_coupon) + (100_000_000.0 * float(unit or 0.0))
-                                    st.caption(
-                                        f"Expected Cashflow to maturity (auto) = {expected_cashflow_to_maturity:,.2f}"
-                                    )
-                                    received_coupon = st.number_input(
-                                        "Received Coupon (Amount)",
-                                        min_value=0.0,
-                                        value=float(inv.received_coupon or 0.0),
-                                        step=0.01,
-                                        key=f"edit_received_coupon_{c.id}_{inv_id}",
-                                    )
-                                    maturity_date = st.date_input("Maturity Date", value=inv.maturity_date or date.today(), key=f"edit_mat_{c.id}_{inv_id}")
-                                    quantity = 1.0
-                                    ticker_identifier = ""
-                                elif is_cash:
-                                    principal = st.number_input(
-                                        "Amount",
-                                        min_value=0.0,
-                                        value=float(inv.principal or 0.0),
-                                        step=1000.0,
-                                        key=f"edit_cash_amt_{c.id}_{inv_id}",
-                                    )
-                                    quantity = 1.0
-                                    ticker_identifier = ""
-                                    purchase_price = 0.0
-                                    purchase_date = None
-                                elif is_real_estate:
-                                    ticker_name = ""
-                                    ticker_identifier = st.text_input(
-                                        "Property / Identifier", value=inv.ticker_identifier or "", key=f"edit_re_name_{c.id}_{inv_id}"
-                                    )
-                                    principal = st.number_input(
-                                        "Principal",
-                                        min_value=0.0,
-                                        value=float(inv.principal or 0.0),
-                                        step=1000.0,
-                                        key=f"edit_re_principal_{c.id}_{inv_id}",
-                                    )
-                                    purchase_price = st.number_input(
-                                        "Investment Value",
-                                        min_value=0.0,
-                                        value=float(inv.purchase_price or 0.0),
-                                        step=1000.0,
-                                        key=f"edit_re_iv_{c.id}_{inv_id}",
-                                    )
-                                    current_price = st.number_input(
-                                        "Current Value",
-                                        min_value=0.0,
-                                        value=float(inv.current_price or 0.0),
-                                        step=1000.0,
-                                        key=f"edit_re_cv_{c.id}_{inv_id}",
-                                    )
-                                    quantity = 1.0
-                                    unit = 1.0
-                                    purchase_date = None
-                                elif is_debt:
-                                    ticker_name = ""
-                                    ticker_identifier = st.text_input(
-                                        "Debt / Identifier", value=inv.ticker_identifier or "", key=f"edit_debt_name_{c.id}_{inv_id}"
-                                    )
-                                    principal = st.number_input(
-                                        "Outstanding Balance",
-                                        min_value=0.0,
-                                        value=float(inv.principal or 0.0),
-                                        step=1000.0,
-                                        key=f"edit_debt_balance_{c.id}_{inv_id}",
-                                    )
-                                    interest_rate = st.number_input(
-                                        "Interest Rate (%)",
-                                        min_value=0.0,
-                                        max_value=100.0,
-                                        value=float(inv.interest_rate or 0.0),
-                                        step=0.1,
-                                        key=f"edit_debt_ir_{c.id}_{inv_id}",
-                                    )
-                                    principal_payment = st.number_input(
-                                        "Principal Payment",
-                                        min_value=0.0,
-                                        value=float(getattr(inv, "principal_payment", 0.0) or 0.0),
-                                        step=1000.0,
-                                        key=f"edit_debt_principal_payment_{c.id}_{inv_id}",
-                                    )
-                                    est_interest_payment = float(principal or 0.0) * (float(interest_rate or 0.0) / 100.0) / 12.0
-                                    total_monthly_payment = float(principal_payment or 0.0) + float(est_interest_payment)
-                                    d_calc_c1, d_calc_c2 = st.columns(2)
-                                    with d_calc_c1:
-                                        st.caption(f"Est Interest Payment (auto): {currency} {est_interest_payment:,.0f}")
-                                    with d_calc_c2:
-                                        st.caption(f"Total Monthly Payment (auto): {currency} {total_monthly_payment:,.0f}")
-                                    quantity = 1.0
-                                    unit = None
-                                    purchase_price = 0.0
-                                    purchase_date = None
-                                else:
-                                    ticker_name = ""
-                                    ticker_identifier = st.text_input("Ticker / Identifier", value=inv.ticker_identifier or "", key=f"edit_ticker_{c.id}_{inv_id}")
-                                    quantity = st.number_input(
-                                        "Unit" if is_stock else "Quantity",
-                                        min_value=0.0,
-                                        value=float(inv.unit if is_stock and inv.unit is not None else inv.quantity),
-                                        step=1.0,
-                                        key=f"edit_qty_{c.id}_{inv_id}",
-                                    )
-                                    purchase_price = st.number_input(
-                                        "Purchase Price (per unit)",
-                                        min_value=0.0,
-                                        value=float(inv.purchase_price),
-                                        step=0.01,
-                                        key=f"edit_pp_{c.id}_{inv_id}",
-                                    )
-                                notes = "" if (is_bond or is_td) else st.text_area("Notes", value=inv.notes or "", key=f"edit_inv_notes_{c.id}_{inv_id}")
+                                closing_value = pd.to_numeric(
+                                    df_past.get("Current Value Display", df_past.get("Current Value")),
+                                    errors="coerce",
+                                ).fillna(0.0)
+                                principal_disp_s = pd.to_numeric(df_past.get("Principal Display"), errors="coerce").fillna(0.0)
+                                realized_pnl = closing_value - principal_disp_s
+                                realized_pct = realized_pnl.divide(principal_disp_s.where(principal_disp_s != 0), fill_value=0.0) * 100.0
+                                df_past["Unrealized P&L"] = realized_pnl.round(0)
+                                df_past["P&L %"] = realized_pct
+                                past_cols = [
+                                    col
+                                    for col in df_past.columns
+                                    if col
+                                    not in {
+                                        "Asset Type",
+                                        "Principal Display",
+                                        "Current Value Display",
+                                        "Unrealized P&L Display",
+                                    }
+                                ]
+                                grouped_past: dict[str, list[tuple[Investment, Any]]] = {}
+                                for i, inv in enumerate(past_order):
+                                    row = df_past.iloc[i]
+                                    grouped_past.setdefault(_past_group_label(str(row["Asset Type"])), []).append((inv, row))
+
+                                for group_name, entries in sorted(grouped_past.items(), key=lambda x: _subgroup_sort_key(x[0])):
+                                    visible_past_cols = [c for c in _visible_cols_for_group(group_name) if c in past_cols]
+                                    with st.expander(f"{group_name} ({len(entries)})", expanded=False):
+                                        if mobile_ui:
+                                            def _render_past_inv_card(entry: tuple[Investment, Any]) -> None:
+                                                inv_item, row_item = entry
+                                                ticker_lbl = str(
+                                                    row_item.get("Ticker", "")
+                                                    or getattr(inv_item, "ticker_identifier", "")
+                                                    or ""
+                                                ).strip()
+                                                st.markdown(
+                                                    f"**{row_item['Asset Type']}"
+                                                    f"{f' · {ticker_lbl}' if ticker_lbl else ''}**"
+                                                )
+                                                def _past_col_label(col: str) -> str:
+                                                    if col == "Current Price":
+                                                        return "Closing Price"
+                                                    if col == "Current Value":
+                                                        return "Closing Value"
+                                                    if col == "Unrealized P&L":
+                                                        return "Realized P&L"
+                                                    return col
+
+                                                render_mobile_kv_grid(
+                                                    _build_mobile_metric_pairs(
+                                                        row_item,
+                                                        visible_past_cols,
+                                                        label_for_col=_past_col_label,
+                                                    )
+                                                )
+                                                if st.button("↩ Active", key=f"rollback_inv_mobile_{c.id}_{inv_item.id}"):
+                                                    inv_to_restore = session.get(Investment, inv_item.id)
+                                                    if inv_to_restore:
+                                                        inv_to_restore.is_done = False
+                                                        session.commit()
+                                                        st.success("Investment moved back to active.")
+                                                    st.rerun()
+
+                                            render_two_column_cards(entries, _render_past_inv_card)
+                                        else:
+                                            past_header = st.columns([2.1] + [1.1] * len(visible_past_cols) + [1.0])
+                                            past_header[0].markdown("**Asset Type**")
+                                            for hi, name in enumerate(visible_past_cols):
+                                                display_name = (
+                                                    "Closing Price"
+                                                    if name == "Current Price"
+                                                    else "Closing Value"
+                                                    if name == "Current Value"
+                                                    else "Realized P&L"
+                                                    if name == "Unrealized P&L"
+                                                    else name
+                                                )
+                                                past_header[hi + 1].markdown(f"**{display_name}**")
+                                            past_header[-1].markdown("**Rollback**")
+                                            for inv, row in entries:
+                                                row_cols = st.columns([2.1] + [1.1] * len(visible_past_cols) + [1.0])
+                                                row_cols[0].write(row["Asset Type"])
+                                                for j, name in enumerate(visible_past_cols):
+                                                    row_cols[j + 1].write(_fmt_cell(name, row[name]))
+                                                if row_cols[-1].button("↩ Active", key=f"rollback_inv_{c.id}_{inv.id}"):
+                                                    inv_to_restore = session.get(Investment, inv.id)
+                                                    if inv_to_restore:
+                                                        inv_to_restore.is_done = False
+                                                        session.commit()
+                                                        st.success("Investment moved back to active.")
+                                                    st.rerun()
+
+                            if past_done_incomes:
+                                with st.expander(f"Past Activities ({len(past_done_incomes)})", expanded=False):
+                                    if mobile_ui:
+                                        def _render_past_activity_card(inc: Income) -> None:
+                                            st.markdown(f"**{inc.income_type}**")
+                                            render_mobile_kv_grid(
+                                                [
+                                                    ("Amount", f"{float(inc.amount or 0.0):,.0f}"),
+                                                    ("Concurrent", "Yes" if inc.concurrent else "No"),
+                                                    (
+                                                        "Mode",
+                                                        getattr(inc, "income_mode", "Actual") or "Actual",
+                                                    ),
+                                                    ("Note", inc.note or "—"),
+                                                ]
+                                            )
+                                            if st.button("↩ Active", key=f"rollback_income_mobile_{c.id}_{inc.id}"):
+                                                inc_obj = session.get(Income, inc.id)
+                                                if inc_obj:
+                                                    inc_obj.is_done = False
+                                                    session.commit()
+                                                    st.success("Activity moved back to active.")
+                                                st.rerun()
+
+                                        render_two_column_cards(past_done_incomes, _render_past_activity_card)
+                                    else:
+                                        pa_head = st.columns([1.4, 1.4, 1.0, 1.0, 2.4, 1.0])
+                                        pa_head[0].markdown("**Type**")
+                                        pa_head[1].markdown("**Amount**")
+                                        pa_head[2].markdown("**Concurrent**")
+                                        pa_head[3].markdown("**Mode**")
+                                        pa_head[4].markdown("**Note**")
+                                        pa_head[5].markdown("**Rollback**")
+                                        for inc in past_done_incomes:
+                                            rc = st.columns([1.4, 1.4, 1.0, 1.0, 2.4, 1.0])
+                                            rc[0].write(inc.income_type)
+                                            rc[1].write(f"{float(inc.amount or 0.0):,.0f}")
+                                            rc[2].write("Yes" if inc.concurrent else "No")
+                                            rc[3].write(getattr(inc, "income_mode", "Actual") or "Actual")
+                                            rc[4].write(inc.note or "—")
+                                            if rc[5].button("↩ Active", key=f"rollback_income_{c.id}_{inc.id}"):
+                                                inc_obj = session.get(Income, inc.id)
+                                                if inc_obj:
+                                                    inc_obj.is_done = False
+                                                    session.commit()
+                                                    st.success("Activity moved back to active.")
+                                                st.rerun()
+
+                    elif client_tab == "More":
+                        selected_edit_id = st.session_state.get(f"edit_inv_target_{c.id}")
+                        st.markdown("#### Obligations")
+                        obligation_edit_key = f"edit_obligation_{c.id}"
+                        obligation_type_key = f"obligation_type_{c.id}"
+                        has_home_insurance_saved = getattr(c, "home_insurance_expiry_date", None) is not None
+                        if obligation_edit_key not in st.session_state:
+                            st.session_state[obligation_edit_key] = False
+                        if obligation_type_key not in st.session_state:
+                            st.session_state[obligation_type_key] = "Home Insurance" if has_home_insurance_saved else "None"
+                        elif st.session_state.get(obligation_type_key) not in {"None", "Home Insurance"}:
+                            st.session_state[obligation_type_key] = "Home Insurance" if has_home_insurance_saved else "None"
+
+                        if has_home_insurance_saved and not st.session_state[obligation_edit_key]:
+                            st.markdown("**Obligation Type:** Home Insurance")
+                            ob_c1, ob_c2, ob_c3, ob_c4 = st.columns([2, 2, 2, 2])
+                            with ob_c1:
+                                st.caption("Amount Covered")
+                                st.write(f"{float(getattr(c, 'home_insurance_amount_covered', 0.0) or 0.0):,.0f}")
+                            with ob_c2:
+                                st.caption("Expiry Date")
+                                st.write(iso_date_or_empty(getattr(c, "home_insurance_expiry_date", None)))
+                            with ob_c3:
+                                st.caption("Insured Premium")
+                                st.write(f"{float(getattr(c, 'home_insurance_insured_premium', 0.0) or 0.0):,.0f}")
+                            with ob_c4:
+                                st.caption("Actions")
+                                if st.button("✏ Edit obligation", key=f"edit_obligation_btn_{c.id}"):
+                                    st.session_state[obligation_edit_key] = True
+                                    st.session_state[obligation_type_key] = "Home Insurance" if has_home_insurance_saved else "None"
+                                    st.rerun()
+                        elif has_home_insurance_saved and st.session_state[obligation_edit_key]:
+                            with st.form(f"obligations_form_{c.id}", clear_on_submit=False):
+                                obligation_type = st.selectbox(
+                                    "Obligation Type",
+                                    ["None", "Home Insurance"],
+                                    key=obligation_type_key,
+                                )
+                                amount_covered = 0.0
+                                expiry_date = date.today()
+                                insured_premium = 0.0
+                                if obligation_type == "Home Insurance":
+                                    default_expiry = getattr(c, "home_insurance_expiry_date", None) or date.today()
+                                    amount_covered_default = float(getattr(c, "home_insurance_amount_covered", None) or 0.0)
+                                    insured_premium_default = float(getattr(c, "home_insurance_insured_premium", None) or 0.0)
+                                    hi_col1, hi_col2, hi_col3 = st.columns(3)
+                                    with hi_col1:
+                                        amount_covered = st.number_input(
+                                            "Amount Covered",
+                                            min_value=0.0,
+                                            value=amount_covered_default,
+                                            step=1000.0,
+                                            key=f"home_insurance_amount_covered_{c.id}",
+                                        )
+                                    with hi_col2:
+                                        expiry_date = st.date_input(
+                                            "Expiry Date",
+                                            value=default_expiry,
+                                            key=f"home_insurance_expiry_date_{c.id}",
+                                        )
+                                    with hi_col3:
+                                        insured_premium = st.number_input(
+                                            "Insured Premium",
+                                            min_value=0.0,
+                                            value=insured_premium_default,
+                                            step=100.0,
+                                            key=f"home_insurance_insured_premium_{c.id}",
+                                        )
                                 save_col, cancel_col = st.columns([1, 1])
                                 with save_col:
-                                    save_clicked = st.form_submit_button("Save investment")
+                                    submitted_obligations = st.form_submit_button("Save obligations")
                                 with cancel_col:
-                                    cancel_clicked = st.form_submit_button("Cancel edit")
-                                if cancel_clicked:
-                                    st.session_state[f"edit_inv_target_{c.id}"] = None
+                                    cancel_obligations = st.form_submit_button("Cancel")
+                                if cancel_obligations:
+                                    st.session_state[obligation_edit_key] = False
                                     st.rerun()
-                                if save_clicked:
-                                    if float(quantity) < 0 or float(purchase_price) < 0:
-                                        st.error("Quantity and purchase price must be non-negative.")
-                                    else:
-                                        inv.asset_type = asset_type
-                                        inv.currency = currency
-                                        inv.ticker_name = ticker_name.strip() or None
-                                        inv.ticker_identifier = ticker_identifier.strip() or None
-                                        inv.quantity = float(quantity)
-                                        inv.unit = (
-                                            float(unit)
-                                            if is_bond
-                                            else float(quantity)
-                                            if is_stock
-                                            else None
-                                        )
-                                        inv.principal = float(principal) if principal is not None else None
-                                        inv.purchase_price = float(purchase_price)
-                                        inv.purchase_date = purchase_date
-                                        inv.tenor = tenor
-                                        inv.interest_rate = float(interest_rate) if interest_rate is not None else None
-                                        inv.principal_payment = (
-                                            float(principal_payment) if is_debt and principal_payment is not None else None
-                                        )
-                                        inv.ytm = float(ytm) if is_bond else None
-                                        inv.current_price = (
-                                            float(current_price)
-                                            if (is_bond or is_real_estate) and current_price is not None
-                                            else None
-                                        )
-                                        inv.expected_coupon = float(expected_coupon) if is_bond and expected_coupon is not None else None
-                                        inv.received_coupon = float(received_coupon) if is_bond and received_coupon is not None else None
-                                        inv.maturity_date = maturity_date
-                                        inv.notes = notes.strip() or None
+                                if submitted_obligations:
+                                    client_to_update = session.get(Client, c.id)
+                                    if client_to_update:
+                                        if obligation_type == "Home Insurance":
+                                            client_to_update.home_insurance_amount_covered = float(amount_covered)
+                                            client_to_update.home_insurance_expiry_date = expiry_date
+                                            client_to_update.home_insurance_insured_premium = float(insured_premium)
+                                            st.success("Home insurance obligations updated.")
+                                        else:
+                                            client_to_update.home_insurance_amount_covered = None
+                                            client_to_update.home_insurance_expiry_date = None
+                                            client_to_update.home_insurance_insured_premium = None
+                                            st.success("Obligations cleared.")
                                         session.commit()
-                                        st.success("Investment updated.")
+                                    st.session_state[obligation_edit_key] = False
+                                    st.rerun()
+                        else:
+                            st.caption("No obligations yet.")
+
+                        if selected_edit_id is not None:
+                            inv_options = sorted(invs_all, key=lambda x: x.id)
+                            if inv_options:
+                                st.markdown("#### Edit investment")
+                                picker_key = f"edit_inv_picker_{c.id}"
+                                if st.session_state.get(picker_key) != selected_edit_id:
+                                    st.session_state[picker_key] = selected_edit_id
+                                inv_id = st.selectbox(
+                                    "Select investment",
+                                    [inv.id for inv in inv_options],
+                                    format_func=lambda i: f"{session.get(Investment, i).asset_type} {session.get(Investment, i).ticker_identifier or ''} (Qty {session.get(Investment, i).quantity})",
+                                    key=picker_key,
+                                )
+                                st.session_state[f"edit_inv_target_{c.id}"] = inv_id
+                                inv = session.get(Investment, inv_id)
+                                with st.form(f"edit_inv_form_{c.id}_{inv_id}", clear_on_submit=False):
+                                    norm_type = _normalize_asset_type_name(inv.asset_type)
+                                    asset_type = st.selectbox(
+                                        "Asset Type",
+                                        ASSET_TYPES,
+                                        index=ASSET_TYPES.index(norm_type) if norm_type in ASSET_TYPES else 0,
+                                        key=f"edit_asset_type_{c.id}_{inv_id}",
+                                    )
+                                    asset_kind = asset_type.lower()
+                                    is_cd = _is_cd_kind(asset_kind)
+                                    is_td = asset_kind == "term deposit"
+                                    is_bond = asset_kind == "bond"
+                                    is_stock = asset_kind in {"stock", "vn_stock", "us_stock", "commodity"}
+                                    is_real_estate = asset_kind == "real estate"
+                                    is_debt = asset_kind == "debt"
+                                    is_cash = asset_kind == "cash"
+                                    currency = _default_currency_for_asset(asset_type)
+                                    st.caption(f"Currency: {currency} (auto by asset type)")
+                                    ticker_identifier = inv.ticker_identifier or ""
+                                    ticker_name = inv.ticker_name or ""
+                                    quantity = float(inv.quantity)
+                                    principal = float(inv.principal) if inv.principal is not None else None
+                                    purchase_price = float(inv.purchase_price)
+                                    purchase_date = None
+                                    tenor = None
+                                    interest_rate = None
+                                    expected_coupon = None
+                                    received_coupon = None
+                                    unit = None
+                                    ytm = None
+                                    current_price = None
+                                    maturity_date = None
+                                    principal_payment = None
+                                    if is_cd:
+                                        principal = st.number_input(
+                                            "Principal", min_value=0.0, value=float(inv.principal or 0.0), step=1000.0, key=f"edit_cd_principal_{c.id}_{inv_id}"
+                                        )
+                                        purchase_date = st.date_input(
+                                            "Purchase Date", value=inv.purchase_date or date.today(), key=f"edit_cd_pdate_{c.id}_{inv_id}"
+                                        )
+                                        quantity = 1.0
+                                        ticker_identifier = ""
+                                        purchase_price = 0.0
+                                    elif is_td:
+                                        principal = st.number_input(
+                                            "Principal", min_value=0.0, value=float(inv.principal or 0.0), step=1000.0, key=f"edit_td_principal_{c.id}_{inv_id}"
+                                        )
+                                        purchase_date = st.date_input(
+                                            "Buy Date", value=inv.purchase_date or date.today(), key=f"edit_td_pdate_{c.id}_{inv_id}"
+                                        )
+                                        tenor_default = inv.tenor if inv.tenor in TERM_TENOR_OPTIONS else TERM_TENOR_OPTIONS[0]
+                                        tenor = st.selectbox("Tenor", TERM_TENOR_OPTIONS, index=TERM_TENOR_OPTIONS.index(tenor_default), key=f"edit_td_tenor_{c.id}_{inv_id}")
+                                        interest_rate = st.number_input(
+                                            "Interest Rate (%)",
+                                            min_value=0.0,
+                                            max_value=100.0,
+                                            value=float(inv.interest_rate or 0.0),
+                                            step=0.1,
+                                            key=f"edit_td_ir_{c.id}_{inv_id}",
+                                        )
+                                        maturity_date = _add_months(purchase_date, int(tenor.split()[0]))
+                                        st.caption(f"Maturity Date (auto): {maturity_date.isoformat()}")
+                                        td_days = max((maturity_date - purchase_date).days, 0)
+                                        td_interest = float(principal) * (float(interest_rate) / 100.0) / 365.0 * float(td_days)
+                                        st.caption(f"Interest (auto): {currency} {td_interest:,.0f}")
+                                        quantity = 1.0
+                                        ticker_identifier = ""
+                                        purchase_price = 0.0
+                                    elif is_bond:
+                                        ticker_name = st.text_input(
+                                            "Ticker",
+                                            value=inv.ticker_name or "",
+                                            key=f"edit_bond_ticker_name_{c.id}_{inv_id}",
+                                        )
+                                        unit = st.number_input(
+                                            "Unit", min_value=0.0, value=float(inv.unit or 0.0), step=1.0, key=f"edit_bond_unit_{c.id}_{inv_id}"
+                                        )
+                                        purchase_date = st.date_input(
+                                            "Purchase Date", value=inv.purchase_date or date.today(), key=f"edit_bond_pdate_{c.id}_{inv_id}"
+                                        )
+                                        principal = st.number_input(
+                                            "Principal",
+                                            min_value=0.0,
+                                            value=float(inv.principal or 0.0),
+                                            step=1000.0,
+                                            key=f"edit_bond_principal_{c.id}_{inv_id}",
+                                        )
+                                        purchase_price = (float(principal) / float(unit)) if float(unit) > 0 else 0.0
+                                        st.caption(f"Buy Price (auto) = {purchase_price:,.2f}")
+                                        ytm = st.number_input(
+                                            "YTM (%)",
+                                            min_value=0.0,
+                                            max_value=100.0,
+                                            value=float(inv.ytm or 0.0),
+                                            step=0.1,
+                                            key=f"edit_bond_ytm_{c.id}_{inv_id}",
+                                        )
+                                        current_price = st.number_input(
+                                            "Current Price",
+                                            min_value=0.0,
+                                            value=float(inv.current_price or 0.0),
+                                            step=0.01,
+                                            key=f"edit_bond_current_price_{c.id}_{inv_id}",
+                                        )
+                                        expected_coupon = st.number_input(
+                                            "Expected Coupon (Amount)",
+                                            min_value=0.0,
+                                            value=float(inv.expected_coupon or 0.0),
+                                            step=0.01,
+                                            key=f"edit_coupon_{c.id}_{inv_id}",
+                                        )
+                                        expected_cashflow_to_maturity = float(expected_coupon) + (100_000_000.0 * float(unit or 0.0))
+                                        st.caption(
+                                            f"Expected Cashflow to maturity (auto) = {expected_cashflow_to_maturity:,.2f}"
+                                        )
+                                        received_coupon = st.number_input(
+                                            "Received Coupon (Amount)",
+                                            min_value=0.0,
+                                            value=float(inv.received_coupon or 0.0),
+                                            step=0.01,
+                                            key=f"edit_received_coupon_{c.id}_{inv_id}",
+                                        )
+                                        maturity_date = st.date_input("Maturity Date", value=inv.maturity_date or date.today(), key=f"edit_mat_{c.id}_{inv_id}")
+                                        quantity = 1.0
+                                        ticker_identifier = ""
+                                    elif is_cash:
+                                        principal = st.number_input(
+                                            "Amount",
+                                            min_value=0.0,
+                                            value=float(inv.principal or 0.0),
+                                            step=1000.0,
+                                            key=f"edit_cash_amt_{c.id}_{inv_id}",
+                                        )
+                                        quantity = 1.0
+                                        ticker_identifier = ""
+                                        purchase_price = 0.0
+                                        purchase_date = None
+                                    elif is_real_estate:
+                                        ticker_name = ""
+                                        ticker_identifier = st.text_input(
+                                            "Property / Identifier", value=inv.ticker_identifier or "", key=f"edit_re_name_{c.id}_{inv_id}"
+                                        )
+                                        principal = st.number_input(
+                                            "Principal",
+                                            min_value=0.0,
+                                            value=float(inv.principal or 0.0),
+                                            step=1000.0,
+                                            key=f"edit_re_principal_{c.id}_{inv_id}",
+                                        )
+                                        purchase_price = st.number_input(
+                                            "Investment Value",
+                                            min_value=0.0,
+                                            value=float(inv.purchase_price or 0.0),
+                                            step=1000.0,
+                                            key=f"edit_re_iv_{c.id}_{inv_id}",
+                                        )
+                                        current_price = st.number_input(
+                                            "Current Value",
+                                            min_value=0.0,
+                                            value=float(inv.current_price or 0.0),
+                                            step=1000.0,
+                                            key=f"edit_re_cv_{c.id}_{inv_id}",
+                                        )
+                                        quantity = 1.0
+                                        unit = 1.0
+                                        purchase_date = None
+                                    elif is_debt:
+                                        ticker_name = ""
+                                        ticker_identifier = st.text_input(
+                                            "Debt / Identifier", value=inv.ticker_identifier or "", key=f"edit_debt_name_{c.id}_{inv_id}"
+                                        )
+                                        principal = st.number_input(
+                                            "Outstanding Balance",
+                                            min_value=0.0,
+                                            value=float(inv.principal or 0.0),
+                                            step=1000.0,
+                                            key=f"edit_debt_balance_{c.id}_{inv_id}",
+                                        )
+                                        interest_rate = st.number_input(
+                                            "Interest Rate (%)",
+                                            min_value=0.0,
+                                            max_value=100.0,
+                                            value=float(inv.interest_rate or 0.0),
+                                            step=0.1,
+                                            key=f"edit_debt_ir_{c.id}_{inv_id}",
+                                        )
+                                        principal_payment = st.number_input(
+                                            "Principal Payment",
+                                            min_value=0.0,
+                                            value=float(getattr(inv, "principal_payment", 0.0) or 0.0),
+                                            step=1000.0,
+                                            key=f"edit_debt_principal_payment_{c.id}_{inv_id}",
+                                        )
+                                        est_interest_payment = float(principal or 0.0) * (float(interest_rate or 0.0) / 100.0) / 12.0
+                                        total_monthly_payment = float(principal_payment or 0.0) + float(est_interest_payment)
+                                        d_calc_c1, d_calc_c2 = st.columns(2)
+                                        with d_calc_c1:
+                                            st.caption(f"Est Interest Payment (auto): {currency} {est_interest_payment:,.0f}")
+                                        with d_calc_c2:
+                                            st.caption(f"Total Monthly Payment (auto): {currency} {total_monthly_payment:,.0f}")
+                                        quantity = 1.0
+                                        unit = None
+                                        purchase_price = 0.0
+                                        purchase_date = None
+                                    else:
+                                        ticker_name = ""
+                                        ticker_identifier = st.text_input("Ticker / Identifier", value=inv.ticker_identifier or "", key=f"edit_ticker_{c.id}_{inv_id}")
+                                        quantity = st.number_input(
+                                            "Unit" if is_stock else "Quantity",
+                                            min_value=0.0,
+                                            value=float(inv.unit if is_stock and inv.unit is not None else inv.quantity),
+                                            step=1.0,
+                                            key=f"edit_qty_{c.id}_{inv_id}",
+                                        )
+                                        purchase_price = st.number_input(
+                                            "Purchase Price (per unit)",
+                                            min_value=0.0,
+                                            value=float(inv.purchase_price),
+                                            step=0.01,
+                                            key=f"edit_pp_{c.id}_{inv_id}",
+                                        )
+                                    notes = "" if (is_bond or is_td) else st.text_area("Notes", value=inv.notes or "", key=f"edit_inv_notes_{c.id}_{inv_id}")
+                                    save_col, cancel_col = st.columns([1, 1])
+                                    with save_col:
+                                        save_clicked = st.form_submit_button("Save investment")
+                                    with cancel_col:
+                                        cancel_clicked = st.form_submit_button("Cancel edit")
+                                    if cancel_clicked:
                                         st.session_state[f"edit_inv_target_{c.id}"] = None
                                         st.rerun()
+                                    if save_clicked:
+                                        if float(quantity) < 0 or float(purchase_price) < 0:
+                                            st.error("Quantity and purchase price must be non-negative.")
+                                        else:
+                                            inv.asset_type = asset_type
+                                            inv.currency = currency
+                                            inv.ticker_name = ticker_name.strip() or None
+                                            inv.ticker_identifier = ticker_identifier.strip() or None
+                                            inv.quantity = float(quantity)
+                                            inv.unit = (
+                                                float(unit)
+                                                if is_bond
+                                                else float(quantity)
+                                                if is_stock
+                                                else None
+                                            )
+                                            inv.principal = float(principal) if principal is not None else None
+                                            inv.purchase_price = float(purchase_price)
+                                            inv.purchase_date = purchase_date
+                                            inv.tenor = tenor
+                                            inv.interest_rate = float(interest_rate) if interest_rate is not None else None
+                                            inv.principal_payment = (
+                                                float(principal_payment) if is_debt and principal_payment is not None else None
+                                            )
+                                            inv.ytm = float(ytm) if is_bond else None
+                                            inv.current_price = (
+                                                float(current_price)
+                                                if (is_bond or is_real_estate) and current_price is not None
+                                                else None
+                                            )
+                                            inv.expected_coupon = float(expected_coupon) if is_bond and expected_coupon is not None else None
+                                            inv.received_coupon = float(received_coupon) if is_bond and received_coupon is not None else None
+                                            inv.maturity_date = maturity_date
+                                            inv.notes = notes.strip() or None
+                                            session.commit()
+                                            st.success("Investment updated.")
+                                            st.session_state[f"edit_inv_target_{c.id}"] = None
+                                            st.rerun()
 
-                    # Add investment
-                    add_inv_open_key = f"add_inv_open_{c.id}"
-                    add_inv_asset_preset_key = f"add_inv_asset_type_{c.id}"
-                    asset_type_key = f"asset_type_{c.id}"
-                    cashflow_types = ["Salary", "Dividends", "Other Incomes", "Other Obligations"]
-                    obligation_types = ["Home Insurance"]
-                    add_options = ASSET_TYPES + cashflow_types + obligation_types
-                    preset_asset = st.session_state.pop(add_inv_asset_preset_key, None)
-                    if preset_asset in add_options:
-                        st.session_state[asset_type_key] = preset_asset
-                    with st.expander("Add Investment/Debts/Cashflow", expanded=bool(st.session_state.get(add_inv_open_key, False))):
-                        asset_type = st.selectbox("Asset Type", add_options, key=asset_type_key)
-                        asset_kind = asset_type.lower()
-                        is_cd = _is_cd_kind(asset_kind)
-                        is_td = asset_kind == "term deposit"
-                        is_bond = asset_kind == "bond"
-                        is_stock = asset_kind in {"stock", "vn_stock", "us_stock", "commodity"}
-                        is_real_estate = asset_kind == "real estate"
-                        is_debt = asset_kind == "debt"
-                        is_cash = asset_kind == "cash"
-                        is_income = asset_type in cashflow_types
-                        is_obligation = asset_type in obligation_types
-                        currency = _default_currency_for_asset(asset_type)
-                        if not is_income and not is_obligation:
-                            st.caption(f"Currency: {currency} (auto by asset type)")
-                        ticker_name = None
-                        ticker_identifier = ""
-                        quantity = 1.0
-                        principal = None
-                        purchase_price = 0.0
-                        purchase_date = None
-                        tenor = None
-                        interest_rate = None
-                        expected_coupon = None
-                        received_coupon = None
-                        unit = None
-                        ytm = None
-                        current_price = None
-                        maturity_date = None
-                        principal_payment = None
-                        income_amount = 0.0
-                        income_concurrent = False
-                        income_note = ""
-                        obligation_amount_covered = 0.0
-                        obligation_expiry_date = date.today()
-                        obligation_insured_premium = 0.0
-                        if is_cd:
-                            principal = st.number_input("Principal", min_value=0.0, value=0.0, step=1000.0, key=f"cd_principal_{c.id}")
-                            purchase_date = st.date_input("Purchase Date", value=date.today(), key=f"cd_pdate_{c.id}")
-                        elif is_td:
-                            principal = st.number_input("Principal", min_value=0.0, value=0.0, step=1000.0, key=f"td_principal_{c.id}")
-                            purchase_date = st.date_input("Buy Date", value=date.today(), key=f"td_pdate_{c.id}")
-                            tenor = st.selectbox("Tenor", TERM_TENOR_OPTIONS, index=0, key=f"td_tenor_{c.id}")
-                            interest_rate = st.number_input(
-                                "Interest Rate (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"td_ir_{c.id}"
-                            )
-                            tenor_months = int(tenor.split()[0])
-                            maturity_date = _add_months(purchase_date, tenor_months)
-                            st.caption(f"Maturity Date (auto): {maturity_date.isoformat()}")
-                            td_days = max((maturity_date - purchase_date).days, 0)
-                            td_interest = float(principal) * (float(interest_rate) / 100.0) / 365.0 * float(td_days)
-                            st.caption(f"Interest (auto): {currency} {td_interest:,.0f}")
-                        elif is_bond:
-                            ticker_name = st.text_input("Ticker", key=f"bond_ticker_name_{c.id}")
-                            unit = st.number_input("Unit", min_value=0.0, value=0.0, step=1.0, key=f"bond_unit_{c.id}")
-                            purchase_date = st.date_input("Purchase Date", value=date.today(), key=f"pdate_{c.id}")
-                            principal = st.number_input("Principal", min_value=0.0, value=0.0, step=1000.0, key=f"bond_principal_{c.id}")
-                            purchase_price = (float(principal) / float(unit)) if float(unit) > 0 else 0.0
-                            st.caption(f"Buy Price (auto) = {purchase_price:,.2f}")
-                            ytm = st.number_input(
-                                "YTM (%)",
-                                min_value=0.0,
-                                max_value=100.0,
-                                value=0.0,
-                                step=0.1,
-                                key=f"bond_ytm_{c.id}",
-                            )
-                            current_price = st.number_input(
-                                "Current Price",
-                                min_value=0.0,
-                                value=0.0,
-                                step=0.01,
-                                key=f"bond_current_price_{c.id}",
-                            )
-                            expected_coupon = st.number_input(
-                                "Expected Coupon (Amount)",
-                                min_value=0.0,
-                                value=0.0,
-                                step=0.01,
-                                key=f"coupon_{c.id}",
-                            )
-                            received_coupon = st.number_input(
-                                "Received Coupon (Amount)",
-                                min_value=0.0,
-                                value=0.0,
-                                step=0.01,
-                                key=f"received_coupon_{c.id}",
-                            )
-                            maturity_date = st.date_input("Maturity Date", value=date.today(), key=f"maturity_{c.id}")
-                        elif is_cash:
-                            principal = st.number_input("Amount", min_value=0.0, value=0.0, step=1000.0, key=f"cash_amt_{c.id}")
-                        elif is_real_estate:
-                            ticker_identifier = st.text_input("Property / Identifier", key=f"re_name_{c.id}")
-                            principal = st.number_input("Principal", min_value=0.0, value=0.0, step=1000.0, key=f"re_principal_{c.id}")
-                            purchase_price = st.number_input(
-                                "Investment Value", min_value=0.0, value=0.0, step=1000.0, key=f"re_iv_{c.id}"
-                            )
-                            current_price = st.number_input(
-                                "Current Value", min_value=0.0, value=0.0, step=1000.0, key=f"re_cv_{c.id}"
-                            )
+                        # Add investment
+                        add_inv_open_key = f"add_inv_open_{c.id}"
+                        add_inv_asset_preset_key = f"add_inv_asset_type_{c.id}"
+                        asset_type_key = f"asset_type_{c.id}"
+                        cashflow_types = ["Salary", "Dividends", "Other Incomes", "Other Obligations"]
+                        obligation_types = ["Home Insurance"]
+                        add_options = ASSET_TYPES + cashflow_types + obligation_types
+                        preset_asset = st.session_state.pop(add_inv_asset_preset_key, None)
+                        if preset_asset in add_options:
+                            st.session_state[asset_type_key] = preset_asset
+                        with st.expander("Add Investment/Debts/Cashflow", expanded=bool(st.session_state.get(add_inv_open_key, False))):
+                            asset_type = st.selectbox("Asset Type", add_options, key=asset_type_key)
+                            asset_kind = asset_type.lower()
+                            is_cd = _is_cd_kind(asset_kind)
+                            is_td = asset_kind == "term deposit"
+                            is_bond = asset_kind == "bond"
+                            is_stock = asset_kind in {"stock", "vn_stock", "us_stock", "commodity"}
+                            is_real_estate = asset_kind == "real estate"
+                            is_debt = asset_kind == "debt"
+                            is_cash = asset_kind == "cash"
+                            is_income = asset_type in cashflow_types
+                            is_obligation = asset_type in obligation_types
+                            currency = _default_currency_for_asset(asset_type)
+                            if not is_income and not is_obligation:
+                                st.caption(f"Currency: {currency} (auto by asset type)")
+                            ticker_name = None
+                            ticker_identifier = ""
                             quantity = 1.0
-                            unit = 1.0
-                        elif is_debt:
-                            ticker_identifier = st.text_input("Debt / Identifier", key=f"debt_name_{c.id}")
-                            principal = st.number_input(
-                                "Outstanding Balance", min_value=0.0, value=0.0, step=1000.0, key=f"debt_balance_{c.id}"
-                            )
-                            interest_rate = st.number_input(
-                                "Interest Rate (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"debt_ir_{c.id}"
-                            )
-                            principal_payment = st.number_input(
-                                "Principal Payment",
-                                min_value=0.0,
-                                value=0.0,
-                                step=1000.0,
-                                key=f"debt_principal_payment_{c.id}",
-                            )
-                            est_interest_payment = float(principal) * (float(interest_rate) / 100.0) / 12.0
-                            total_monthly_payment = float(principal_payment) + float(est_interest_payment)
-                            d_calc_c1, d_calc_c2 = st.columns(2)
-                            with d_calc_c1:
-                                st.caption(f"Est Interest Payment (auto): {currency} {est_interest_payment:,.0f}")
-                            with d_calc_c2:
-                                st.caption(f"Total Monthly Payment (auto): {currency} {total_monthly_payment:,.0f}")
-                            quantity = 1.0
+                            principal = None
                             purchase_price = 0.0
-                        elif is_income:
-                            income_mode = st.selectbox(
-                                "Mode",
-                                ["Actual", "Forecast"],
-                                key=f"cashflow_mode_{c.id}",
-                            )
-                            income_amount = st.number_input(
-                                "Amount",
-                                min_value=0.0,
-                                value=0.0,
-                                step=1000.0,
-                                key=f"cashflow_amount_{c.id}",
-                            )
-                            income_concurrent = st.checkbox(
-                                "Concurrent",
-                                value=False,
-                                key=f"cashflow_concurrent_{c.id}",
-                            )
-                            income_note = st.text_input("Note", value="", key=f"cashflow_note_{c.id}")
-                        elif is_obligation:
-                            o1, o2, o3 = st.columns(3)
-                            with o1:
-                                obligation_amount_covered = st.number_input(
-                                    "Amount Covered",
+                            purchase_date = None
+                            tenor = None
+                            interest_rate = None
+                            expected_coupon = None
+                            received_coupon = None
+                            unit = None
+                            ytm = None
+                            current_price = None
+                            maturity_date = None
+                            principal_payment = None
+                            income_amount = 0.0
+                            income_concurrent = False
+                            income_note = ""
+                            obligation_amount_covered = 0.0
+                            obligation_expiry_date = date.today()
+                            obligation_insured_premium = 0.0
+                            if is_cd:
+                                principal = st.number_input("Principal", min_value=0.0, value=0.0, step=1000.0, key=f"cd_principal_{c.id}")
+                                purchase_date = st.date_input("Purchase Date", value=date.today(), key=f"cd_pdate_{c.id}")
+                            elif is_td:
+                                principal = st.number_input("Principal", min_value=0.0, value=0.0, step=1000.0, key=f"td_principal_{c.id}")
+                                purchase_date = st.date_input("Buy Date", value=date.today(), key=f"td_pdate_{c.id}")
+                                tenor = st.selectbox("Tenor", TERM_TENOR_OPTIONS, index=0, key=f"td_tenor_{c.id}")
+                                interest_rate = st.number_input(
+                                    "Interest Rate (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"td_ir_{c.id}"
+                                )
+                                tenor_months = int(tenor.split()[0])
+                                maturity_date = _add_months(purchase_date, tenor_months)
+                                st.caption(f"Maturity Date (auto): {maturity_date.isoformat()}")
+                                td_days = max((maturity_date - purchase_date).days, 0)
+                                td_interest = float(principal) * (float(interest_rate) / 100.0) / 365.0 * float(td_days)
+                                st.caption(f"Interest (auto): {currency} {td_interest:,.0f}")
+                            elif is_bond:
+                                ticker_name = st.text_input("Ticker", key=f"bond_ticker_name_{c.id}")
+                                unit = st.number_input("Unit", min_value=0.0, value=0.0, step=1.0, key=f"bond_unit_{c.id}")
+                                purchase_date = st.date_input("Purchase Date", value=date.today(), key=f"pdate_{c.id}")
+                                principal = st.number_input("Principal", min_value=0.0, value=0.0, step=1000.0, key=f"bond_principal_{c.id}")
+                                purchase_price = (float(principal) / float(unit)) if float(unit) > 0 else 0.0
+                                st.caption(f"Buy Price (auto) = {purchase_price:,.2f}")
+                                ytm = st.number_input(
+                                    "YTM (%)",
+                                    min_value=0.0,
+                                    max_value=100.0,
+                                    value=0.0,
+                                    step=0.1,
+                                    key=f"bond_ytm_{c.id}",
+                                )
+                                current_price = st.number_input(
+                                    "Current Price",
+                                    min_value=0.0,
+                                    value=0.0,
+                                    step=0.01,
+                                    key=f"bond_current_price_{c.id}",
+                                )
+                                expected_coupon = st.number_input(
+                                    "Expected Coupon (Amount)",
+                                    min_value=0.0,
+                                    value=0.0,
+                                    step=0.01,
+                                    key=f"coupon_{c.id}",
+                                )
+                                received_coupon = st.number_input(
+                                    "Received Coupon (Amount)",
+                                    min_value=0.0,
+                                    value=0.0,
+                                    step=0.01,
+                                    key=f"received_coupon_{c.id}",
+                                )
+                                maturity_date = st.date_input("Maturity Date", value=date.today(), key=f"maturity_{c.id}")
+                            elif is_cash:
+                                principal = st.number_input("Amount", min_value=0.0, value=0.0, step=1000.0, key=f"cash_amt_{c.id}")
+                            elif is_real_estate:
+                                ticker_identifier = st.text_input("Property / Identifier", key=f"re_name_{c.id}")
+                                principal = st.number_input("Principal", min_value=0.0, value=0.0, step=1000.0, key=f"re_principal_{c.id}")
+                                purchase_price = st.number_input(
+                                    "Investment Value", min_value=0.0, value=0.0, step=1000.0, key=f"re_iv_{c.id}"
+                                )
+                                current_price = st.number_input(
+                                    "Current Value", min_value=0.0, value=0.0, step=1000.0, key=f"re_cv_{c.id}"
+                                )
+                                quantity = 1.0
+                                unit = 1.0
+                            elif is_debt:
+                                ticker_identifier = st.text_input("Debt / Identifier", key=f"debt_name_{c.id}")
+                                principal = st.number_input(
+                                    "Outstanding Balance", min_value=0.0, value=0.0, step=1000.0, key=f"debt_balance_{c.id}"
+                                )
+                                interest_rate = st.number_input(
+                                    "Interest Rate (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1, key=f"debt_ir_{c.id}"
+                                )
+                                principal_payment = st.number_input(
+                                    "Principal Payment",
                                     min_value=0.0,
                                     value=0.0,
                                     step=1000.0,
-                                    key=f"obligation_amount_covered_{c.id}",
+                                    key=f"debt_principal_payment_{c.id}",
                                 )
-                            with o2:
-                                obligation_expiry_date = st.date_input(
-                                    "Expiry Date",
-                                    value=date.today(),
-                                    key=f"obligation_expiry_date_{c.id}",
+                                est_interest_payment = float(principal) * (float(interest_rate) / 100.0) / 12.0
+                                total_monthly_payment = float(principal_payment) + float(est_interest_payment)
+                                d_calc_c1, d_calc_c2 = st.columns(2)
+                                with d_calc_c1:
+                                    st.caption(f"Est Interest Payment (auto): {currency} {est_interest_payment:,.0f}")
+                                with d_calc_c2:
+                                    st.caption(f"Total Monthly Payment (auto): {currency} {total_monthly_payment:,.0f}")
+                                quantity = 1.0
+                                purchase_price = 0.0
+                            elif is_income:
+                                income_mode = st.selectbox(
+                                    "Mode",
+                                    ["Actual", "Forecast"],
+                                    key=f"cashflow_mode_{c.id}",
                                 )
-                            with o3:
-                                obligation_insured_premium = st.number_input(
-                                    "Insured Premium",
+                                income_amount = st.number_input(
+                                    "Amount",
                                     min_value=0.0,
                                     value=0.0,
-                                    step=100.0,
-                                    key=f"obligation_insured_premium_{c.id}",
+                                    step=1000.0,
+                                    key=f"cashflow_amount_{c.id}",
                                 )
-                        else:
-                            ticker_name = None
-                            ticker_identifier = st.text_input("Ticker / Identifier", key=f"ticker_{c.id}")
-                            quantity = st.number_input(
-                                "Unit" if is_stock else "Quantity",
-                                min_value=0.0,
-                                value=0.0,
-                                step=1.0,
-                                key=f"qty_{c.id}",
-                            )
-                            purchase_price = st.number_input(
-                                "Purchase Price (per unit)",
-                                min_value=0.0,
-                                value=0.0,
-                                step=0.01,
-                                key=f"pp_{c.id}",
-                            )
-                        notes = "" if (is_bond or is_td or is_income or is_obligation) else st.text_area("Notes", key=f"inv_notes_{c.id}")
+                                income_concurrent = st.checkbox(
+                                    "Concurrent",
+                                    value=False,
+                                    key=f"cashflow_concurrent_{c.id}",
+                                )
+                                income_note = st.text_input("Note", value="", key=f"cashflow_note_{c.id}")
+                            elif is_obligation:
+                                o1, o2, o3 = st.columns(3)
+                                with o1:
+                                    obligation_amount_covered = st.number_input(
+                                        "Amount Covered",
+                                        min_value=0.0,
+                                        value=0.0,
+                                        step=1000.0,
+                                        key=f"obligation_amount_covered_{c.id}",
+                                    )
+                                with o2:
+                                    obligation_expiry_date = st.date_input(
+                                        "Expiry Date",
+                                        value=date.today(),
+                                        key=f"obligation_expiry_date_{c.id}",
+                                    )
+                                with o3:
+                                    obligation_insured_premium = st.number_input(
+                                        "Insured Premium",
+                                        min_value=0.0,
+                                        value=0.0,
+                                        step=100.0,
+                                        key=f"obligation_insured_premium_{c.id}",
+                                    )
+                            else:
+                                ticker_name = None
+                                ticker_identifier = st.text_input("Ticker / Identifier", key=f"ticker_{c.id}")
+                                quantity = st.number_input(
+                                    "Unit" if is_stock else "Quantity",
+                                    min_value=0.0,
+                                    value=0.0,
+                                    step=1.0,
+                                    key=f"qty_{c.id}",
+                                )
+                                purchase_price = st.number_input(
+                                    "Purchase Price (per unit)",
+                                    min_value=0.0,
+                                    value=0.0,
+                                    step=0.01,
+                                    key=f"pp_{c.id}",
+                                )
+                            notes = "" if (is_bond or is_td or is_income or is_obligation) else st.text_area("Notes", key=f"inv_notes_{c.id}")
 
-                        if st.button("Add", key=f"add_inv_btn_{c.id}"):
-                            if is_income:
-                                new_income = Income(
+                            if st.button("Add", key=f"add_inv_btn_{c.id}"):
+                                if is_income:
+                                    new_income = Income(
+                                        client_id=c.id,
+                                        income_type=asset_type,
+                                        income_mode=income_mode,
+                                        amount=float(income_amount),
+                                        concurrent=bool(income_concurrent),
+                                        note=income_note.strip() or None,
+                                    )
+                                    session.add(new_income)
+                                    session.commit()
+                                    st.session_state[add_inv_open_key] = False
+                                    st.success("Cashflow added.")
+                                    st.rerun()
+                                if is_obligation:
+                                    client_to_update = session.get(Client, c.id)
+                                    if client_to_update:
+                                        client_to_update.home_insurance_amount_covered = float(obligation_amount_covered)
+                                        client_to_update.home_insurance_expiry_date = obligation_expiry_date
+                                        client_to_update.home_insurance_insured_premium = float(obligation_insured_premium)
+                                        session.commit()
+                                    st.session_state[add_inv_open_key] = False
+                                    st.success("Obligation added.")
+                                    st.rerun()
+                                inv = Investment(
                                     client_id=c.id,
-                                    income_type=asset_type,
-                                    income_mode=income_mode,
-                                    amount=float(income_amount),
-                                    concurrent=bool(income_concurrent),
-                                    note=income_note.strip() or None,
+                                    asset_type=asset_type,
+                                    currency=currency,
+                                    ticker_name=ticker_name.strip() if isinstance(ticker_name, str) and ticker_name.strip() else None,
+                                    ticker_identifier=ticker_identifier.strip() or None,
+                                    quantity=float(quantity),
+                                    unit=(
+                                        float(unit)
+                                        if is_bond and unit is not None
+                                        else float(quantity)
+                                        if is_stock
+                                        else None
+                                    ),
+                                    principal=float(principal) if principal is not None else None,
+                                    purchase_price=float(purchase_price),
+                                    purchase_date=purchase_date,
+                                    tenor=tenor,
+                                    interest_rate=float(interest_rate) if interest_rate is not None else None,
+                                    principal_payment=float(principal_payment) if is_debt and principal_payment is not None else None,
+                                    ytm=float(ytm) if is_bond and ytm is not None else None,
+                                    current_price=float(current_price)
+                                    if (is_bond or is_real_estate) and current_price is not None
+                                    else None,
+                                    expected_coupon=float(expected_coupon) if is_bond and expected_coupon is not None else None,
+                                    received_coupon=float(received_coupon) if is_bond and received_coupon is not None else None,
+                                    maturity_date=maturity_date,
+                                    notes=notes.strip() or None,
                                 )
-                                session.add(new_income)
+                                session.add(inv)
                                 session.commit()
                                 st.session_state[add_inv_open_key] = False
-                                st.success("Cashflow added.")
+                                st.success("Investment added.")
                                 st.rerun()
-                            if is_obligation:
-                                client_to_update = session.get(Client, c.id)
-                                if client_to_update:
-                                    client_to_update.home_insurance_amount_covered = float(obligation_amount_covered)
-                                    client_to_update.home_insurance_expiry_date = obligation_expiry_date
-                                    client_to_update.home_insurance_insured_premium = float(obligation_insured_premium)
-                                    session.commit()
-                                st.session_state[add_inv_open_key] = False
-                                st.success("Obligation added.")
-                                st.rerun()
-                            inv = Investment(
-                                client_id=c.id,
-                                asset_type=asset_type,
-                                currency=currency,
-                                ticker_name=ticker_name.strip() if isinstance(ticker_name, str) and ticker_name.strip() else None,
-                                ticker_identifier=ticker_identifier.strip() or None,
-                                quantity=float(quantity),
-                                unit=(
-                                    float(unit)
-                                    if is_bond and unit is not None
-                                    else float(quantity)
-                                    if is_stock
-                                    else None
-                                ),
-                                principal=float(principal) if principal is not None else None,
-                                purchase_price=float(purchase_price),
-                                purchase_date=purchase_date,
-                                tenor=tenor,
-                                interest_rate=float(interest_rate) if interest_rate is not None else None,
-                                principal_payment=float(principal_payment) if is_debt and principal_payment is not None else None,
-                                ytm=float(ytm) if is_bond and ytm is not None else None,
-                                current_price=float(current_price)
-                                if (is_bond or is_real_estate) and current_price is not None
-                                else None,
-                                expected_coupon=float(expected_coupon) if is_bond and expected_coupon is not None else None,
-                                received_coupon=float(received_coupon) if is_bond and received_coupon is not None else None,
-                                maturity_date=maturity_date,
-                                notes=notes.strip() or None,
-                            )
-                            session.add(inv)
-                            session.commit()
-                            st.session_state[add_inv_open_key] = False
-                            st.success("Investment added.")
-                            st.rerun()
 
     elif tab == "Reminders":
         st.subheader("Reminder Center")

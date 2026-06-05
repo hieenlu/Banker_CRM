@@ -100,15 +100,15 @@ body[data-crm-layout="mobile"] .main .block-container {
     font-size: 0.9rem;
   }
 
-  /* Streamlit rows: consistent two-column rhythm on phone */
-  div[data-testid="stHorizontalBlock"] {
+  /* Streamlit rows: two-column rhythm on phone (except overview pie + catalog) */
+  div[data-testid="stHorizontalBlock"]:not(:has(.crm-dash)) {
     overflow-x: visible;
     overflow-y: visible;
     flex-wrap: wrap !important;
     gap: 0.4rem;
     margin-bottom: 0.1rem;
   }
-  div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+  div[data-testid="stHorizontalBlock"]:not(:has(.crm-dash)) > div[data-testid="column"] {
     flex: 1 1 calc(50% - 0.35rem) !important;
     width: calc(50% - 0.35rem) !important;
     min-width: 0 !important;
