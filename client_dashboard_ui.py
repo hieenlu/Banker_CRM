@@ -123,6 +123,18 @@ div[data-testid="stHorizontalBlock"]:has(.crm-dash) > div[data-testid="column"]:
   padding: 0.6rem 0.75rem; }
 .crm-kpi .lbl { font-size: 0.68rem; color: var(--crm-muted); text-transform: uppercase; }
 .crm-kpi .val { font-size: 0.88rem; font-weight: 700; margin-top: 2px; }
+.crm-table-divider {
+  border-bottom: 1px solid #333;
+  margin: 0.15rem 0 0.4rem 0;
+  height: 0;
+  width: 100%;
+}
+.crm-table-header-divider {
+  border-bottom: 1px solid #444;
+  margin: 0 0 0.35rem 0;
+  height: 0;
+  width: 100%;
+}
 div[data-testid="stRadio"] > div[role="radiogroup"] {
   background: #1a1a1a; border-radius: 8px 8px 0 0; padding: 0.25rem 0.5rem 0;
   border-bottom: 1px solid #333; gap: 0.25rem;
@@ -328,10 +340,12 @@ def render_sidebar_html(
     allocation_total: float,
     allocation_pnl: float,
     allocation_pnl_pct: float | None,
+    realized_pnl: float,
     allocation_cards: list[dict[str, Any]],
 ) -> str:
     """Two donuts: allocation (ex RE & debt) and total assets vs debt."""
     alloc_pct_cls = "pos" if allocation_pnl >= 0 else "neg"
+    realized_cls = "pos" if realized_pnl >= 0 else "neg"
     alloc_pct_txt = f"{allocation_pnl_pct:+.1f}%" if allocation_pnl_pct is not None else "—"
 
     alloc_segments = [
@@ -366,6 +380,11 @@ def render_sidebar_html(
                     "Unrealized P&L",
                     f'{html.escape(_fmt_full(allocation_pnl, disp_ccy))} '
                     f'<span class="crm-donut-pct {alloc_pct_cls}">({html.escape(alloc_pct_txt)})</span>',
+                ),
+                (
+                    "Realized P&L",
+                    f'<span class="crm-donut-pct {realized_cls}">'
+                    f'{html.escape(_fmt_full(realized_pnl, disp_ccy))}</span>',
                 ),
             ]
         ),
@@ -495,6 +514,14 @@ def apply_pending_client_tab(st_module: Any, client_id: int) -> None:
 def queue_client_tab(st_module: Any, client_id: int, tab: str) -> None:
     """Queue a tab switch for the next run (safe after the radio exists)."""
     st_module.session_state[pending_client_tab_key(client_id)] = tab
+
+
+def render_table_header_divider(st_module: Any) -> None:
+    st_module.markdown('<div class="crm-table-header-divider"></div>', unsafe_allow_html=True)
+
+
+def render_table_row_divider(st_module: Any) -> None:
+    st_module.markdown('<div class="crm-table-divider"></div>', unsafe_allow_html=True)
 
 
 def render_html_block(st_module: Any, html: str) -> None:

@@ -23,7 +23,7 @@ from scraper import (
 from telegram_bot import TelegramConfig, load_telegram_config_from_env, send_telegram_message
 from fetch_prices import fetch_latest_prices
 from client_import import build_import_template_bytes, import_clients_workbook
-from ui_responsive import render_mobile_kv_grid, render_two_column_cards, responsive_styles_css
+from ui_responsive import responsive_styles_css
 from ui_device import device_layout_label, ensure_viewport_detected, is_mobile_ui
 from client_dashboard_ui import (
     allocation_cards_ex_re_debt,
@@ -34,6 +34,8 @@ from client_dashboard_ui import (
     render_catalog_streamlit,
     render_html_block,
     render_sidebar_html,
+    render_table_header_divider,
+    render_table_row_divider,
 )
 from utils import (
     client_portfolio_table,
@@ -936,6 +938,8 @@ button[kind="primary"] {
 
                     def _past_group_label(asset_name: str) -> str:
                         a = (asset_name or "").strip().lower()
+                        if a == "stock":
+                            return "VN_Stock"
                         if _is_cd_kind(a) or a == "cash":
                             return "Cash and CDs"
                         return asset_name
@@ -1066,34 +1070,6 @@ button[kind="primary"] {
                             return f"{int(q):,}" if q.is_integer() else f"{q:,.2f}"
                         return str(value)
 
-                    def _build_mobile_metric_pairs(
-                        row_item: Any,
-                        col_names: list[str],
-                        *,
-                        label_for_col: Any | None = None,
-                        max_cols: int = 8,
-                    ) -> list[tuple[str, str]]:
-                        pairs: list[tuple[str, str]] = []
-                        for name in col_names[:max_cols]:
-                            if name == "P&L %":
-                                continue
-                            value_for_cell = row_item[name]
-                            if (
-                                name == "Principal"
-                                and str(row_item.get("Asset Type", "") or "").strip().lower() == "real estate"
-                                and "Principal Display" in row_item
-                            ):
-                                value_for_cell = row_item.get("Principal Display", row_item[name])
-                            label = label_for_col(name) if label_for_col else name
-                            display = _fmt_cell(name, value_for_cell)
-                            if name == "Unrealized P&L":
-                                pct_raw = row_item.get("P&L %", "")
-                                if pct_raw not in (None, "") and not (
-                                    isinstance(pct_raw, float) and pd.isna(pct_raw)
-                                ):
-                                    display = f"{display} ({_fmt_cell('P&L %', pct_raw)})"
-                            pairs.append((label, display))
-                        return pairs
 
                     catalog_cards = build_subgroup_stats(grouped_active, equity_principal_total, disp_ccy)
                     debt_share_pct = (debt_all / current_all * 100.0) if current_all > 0 else 0.0
@@ -1118,6 +1094,7 @@ button[kind="primary"] {
                             allocation_total=current_ex_re,
                             allocation_pnl=pnl_ex_re,
                             allocation_pnl_pct=pct_ex_re,
+                            realized_pnl=realized_past_sum,
                             allocation_cards=allocation_cards_ex_re_debt(catalog_cards),
                         )
                         catalog_cols = 2 if mobile_ui else 3
@@ -1133,16 +1110,13 @@ button[kind="primary"] {
                                 mobile_drill_key=mobile_drill_key,
                                 cols_per_row=catalog_cols,
                             )
-                        st.caption(f"Display: **VND** · FX 1 USD = {fx_rate:,.0f} VND · Realized P&L {format_display_money(realized_past_sum, disp_ccy, decimals=0)}")
+                        st.caption(f"Display: **VND** · FX 1 USD = {fx_rate:,.0f} VND")
 
                     elif client_tab == "Portfolio":
                         if df.empty:
                             st.info("No active investments for this client.")
                         else:
-                            if mobile_ui:
-                                st.caption("Tap a category to open holdings. Summary shows total, allocation, and P&L.")
-                            else:
-                                st.caption("Active investments grouped into Equities and Debts. Click a group to see details.")
+                            st.caption("Active investments grouped into Equities and Debts.")
                             reset_done_key = st.session_state.get("done_checkbox_reset_key")
                             if reset_done_key:
                                 if reset_done_key in st.session_state:
@@ -1176,6 +1150,8 @@ button[kind="primary"] {
 
                             def _past_group_label(asset_name: str) -> str:
                                 a = (asset_name or "").strip().lower()
+                                if a == "stock":
+                                    return "VN_Stock"
                                 if _is_cd_kind(a) or a == "cash":
                                     return "Cash and CDs"
                                 return asset_name
@@ -1307,34 +1283,6 @@ button[kind="primary"] {
                                     return f"{int(q):,}" if q.is_integer() else f"{q:,.2f}"
                                 return str(value)
 
-                            def _build_mobile_metric_pairs(
-                                row_item: Any,
-                                col_names: list[str],
-                                *,
-                                label_for_col: Any | None = None,
-                                max_cols: int = 8,
-                            ) -> list[tuple[str, str]]:
-                                pairs: list[tuple[str, str]] = []
-                                for name in col_names[:max_cols]:
-                                    if name == "P&L %":
-                                        continue
-                                    value_for_cell = row_item[name]
-                                    if (
-                                        name == "Principal"
-                                        and str(row_item.get("Asset Type", "") or "").strip().lower() == "real estate"
-                                        and "Principal Display" in row_item
-                                    ):
-                                        value_for_cell = row_item.get("Principal Display", row_item[name])
-                                    label = label_for_col(name) if label_for_col else name
-                                    display = _fmt_cell(name, value_for_cell)
-                                    if name == "Unrealized P&L":
-                                        pct_raw = row_item.get("P&L %", "")
-                                        if pct_raw not in (None, "") and not (
-                                            isinstance(pct_raw, float) and pd.isna(pct_raw)
-                                        ):
-                                            display = f"{display} ({_fmt_cell('P&L %', pct_raw)})"
-                                    pairs.append((label, display))
-                                return pairs
 
                             grouped_active: dict[str, dict[str, list[tuple[Investment, Any]]]] = {}
                             for i, inv in enumerate(inv_order):
@@ -1349,44 +1297,6 @@ button[kind="primary"] {
                             )
 
                             mobile_drill_key = f"mobile_portfolio_drill_{c.id}"
-
-                            def _render_active_inv_card(entry: tuple[Investment, Any], visible_cols: list[str]) -> None:
-                                inv_item, row_item = entry
-                                ticker_lbl = str(
-                                    row_item.get("Ticker", "")
-                                    or getattr(inv_item, "ticker_identifier", "")
-                                    or ""
-                                ).strip()
-                                title_lbl = f"{row_item['Asset Type']}{f' · {ticker_lbl}' if ticker_lbl else ''}"
-                                st.markdown(f"**{title_lbl}**")
-                                render_mobile_kv_grid(_build_mobile_metric_pairs(row_item, visible_cols))
-                                ac1, ac2 = st.columns(2, gap="small")
-                                if ac1.button("Edit", key=f"portfolio_edit_mobile_{c.id}_{inv_item.id}"):
-                                    suffix = f"_{c.id}_{inv_item.id}"
-                                    for k in list(st.session_state.keys()):
-                                        if k.startswith("edit_") and k.endswith(suffix):
-                                            del st.session_state[k]
-                                    st.session_state[f"edit_inv_target_{c.id}"] = inv_item.id
-                                    st.session_state[f"edit_inv_picker_{c.id}"] = inv_item.id
-                                    st.rerun()
-                                if bool(getattr(inv_item, "is_done", False)):
-                                    if ac2.button("Active", key=f"mark_active_mobile_{c.id}_{inv_item.id}"):
-                                        inv_to_update = session.get(Investment, inv_item.id)
-                                        if inv_to_update:
-                                            inv_to_update.is_done = False
-                                            session.commit()
-                                        st.rerun()
-                                elif ac2.button("Done", key=f"mark_done_mobile_{c.id}_{inv_item.id}"):
-                                    if not (
-                                        st.session_state.pending_done_investment_id == inv_item.id
-                                        and st.session_state.pending_done_client_id == c.id
-                                    ):
-                                        st.session_state.pending_done_investment_id = inv_item.id
-                                        st.session_state.pending_done_client_id = c.id
-                                        st.rerun()
-                                if st.button("Delete", key=f"row_del_mobile_{c.id}_{inv_item.id}", type="primary"):
-                                    st.session_state.pending_delete_investment_id = inv_item.id
-                                    st.rerun()
 
                             catalog_drill = st.session_state.get(mobile_drill_key)
                             if catalog_drill:
@@ -1405,28 +1315,63 @@ button[kind="primary"] {
                                     st.rerun()
                                 st.markdown(f"### {drill_subgroup}")
                                 st.caption(f"{drill_group} · {len(detail_entries)} holding(s)")
-                                if mobile_ui:
-                                    render_two_column_cards(
-                                        detail_entries,
-                                        lambda entry: _render_active_inv_card(entry, detail_visible_cols),
+                                drill_header = st.columns([1.8, 0.45] + [1.35] * len(detail_visible_cols) + [0.7, 0.45])
+                                drill_header[0].markdown("**Asset Type**")
+                                drill_header[1].markdown("** **")
+                                for hi, name in enumerate(detail_visible_cols):
+                                    drill_header[hi + 2].markdown(f"**{name}**")
+                                drill_header[-2].markdown("**Done**")
+                                drill_header[-1].markdown("** **")
+                                render_table_header_divider(st)
+                                for inv, row in detail_entries:
+                                    row_cols = st.columns([1.8, 0.45] + [1.35] * len(detail_visible_cols) + [0.7, 0.45])
+                                    row_cols[0].markdown(
+                                        f'<span title="Asset type">{row["Asset Type"]}</span>',
+                                        unsafe_allow_html=True,
                                     )
-                                else:
-                                    for inv, row in detail_entries:
-                                        row_cols = st.columns([1.8, 0.45] + [1.35] * len(detail_visible_cols) + [0.7, 0.45])
-                                        row_cols[0].markdown(f"**{row['Asset Type']}**")
-                                        if row_cols[1].button("✏", key=f"drill_edit_{c.id}_{inv.id}"):
-                                            st.session_state[f"edit_inv_target_{c.id}"] = inv.id
-                                            queue_client_tab(st, c.id, "More")
-                                            st.rerun()
-                                        for j, name in enumerate(detail_visible_cols):
-                                            val = row[name]
-                                            if (
-                                                name == "Principal"
-                                                and str(row.get("Asset Type", "") or "").strip().lower() == "real estate"
-                                                and "Principal Display" in row
+                                    if row_cols[1].button(
+                                        "✏",
+                                        key=f"drill_edit_{c.id}_{inv.id}",
+                                        help="Edit this investment",
+                                    ):
+                                        st.session_state[f"edit_inv_target_{c.id}"] = inv.id
+                                        queue_client_tab(st, c.id, "More")
+                                        st.rerun()
+                                    for j, name in enumerate(detail_visible_cols):
+                                        value_for_cell = row[name]
+                                        if (
+                                            name == "Principal"
+                                            and str(row.get("Asset Type", "") or "").strip().lower() == "real estate"
+                                            and "Principal Display" in row
+                                        ):
+                                            value_for_cell = row.get("Principal Display", row[name])
+                                        row_cols[j + 2].write(_fmt_cell(name, value_for_cell))
+                                    done_key = f"done_drill_{c.id}_{inv.id}"
+                                    done_checked = row_cols[-2].checkbox(
+                                        "Done",
+                                        value=bool(getattr(inv, "is_done", False)),
+                                        key=done_key,
+                                        label_visibility="collapsed",
+                                    )
+                                    if done_checked != bool(getattr(inv, "is_done", False)):
+                                        if done_checked:
+                                            if not (
+                                                st.session_state.pending_done_investment_id == inv.id
+                                                and st.session_state.pending_done_client_id == c.id
                                             ):
-                                                val = row.get("Principal Display", row[name])
-                                            row_cols[j + 2].write(_fmt_cell(name, val))
+                                                st.session_state.pending_done_investment_id = inv.id
+                                                st.session_state.pending_done_client_id = c.id
+                                                st.rerun()
+                                        else:
+                                            inv_to_update = session.get(Investment, inv.id)
+                                            if inv_to_update:
+                                                inv_to_update.is_done = False
+                                                session.commit()
+                                                st.rerun()
+                                    if row_cols[-1].button("✖", key=f"drill_del_{c.id}_{inv.id}", type="primary"):
+                                        st.session_state.pending_delete_investment_id = inv.id
+                                        st.rerun()
+                                    render_table_row_divider(st)
 
                             for group_name, subgroup_map in grouped_active.items():
                                 if catalog_drill:
@@ -1466,159 +1411,98 @@ button[kind="primary"] {
                                         if group_name == "Debts"
                                         else sorted(list(subgroup_map.items()), key=lambda x: _subgroup_sort_key(x[0]))
                                     )
-                                    if mobile_ui:
-                                        subgroup_summaries: list[dict[str, Any]] = []
-                                        for subgroup_name, subgroup_entries in subgroup_items:
-                                            sub_principal = sum(
-                                                float(e[1].get("Principal Display", e[1].get("Principal", 0)) or 0)
-                                                for e in subgroup_entries
+                                    for subgroup_name, subgroup_entries in subgroup_items:
+                                        sub_principal = sum(
+                                            float(e[1].get("Principal Display", e[1].get("Principal", 0)) or 0)
+                                            for e in subgroup_entries
+                                        )
+                                        visible_cols = _visible_cols_for_group(subgroup_name)
+                                        if group_name == "Debts":
+                                            st.caption(f"Outstanding Balance {disp_ccy} {sub_principal:,.0f}")
+                                            table_container = st.container()
+                                        else:
+                                            sub_alloc = (
+                                                (sub_principal / equity_principal_total * 100.0)
+                                                if equity_principal_total > 0
+                                                else 0.0
                                             )
-                                            if group_name == "Debts":
-                                                sub_alloc_m: float | None = None
-                                                sub_pnl_m = 0.0
-                                            else:
-                                                sub_alloc_m = (
-                                                    (sub_principal / equity_principal_total * 100.0)
-                                                    if equity_principal_total > 0
-                                                    else 0.0
-                                                )
-                                                sub_pnl_m = sum(
-                                                    float(
-                                                        e[1].get(
-                                                            "Unrealized P&L Display",
-                                                            e[1].get("Unrealized P&L", 0),
-                                                        )
-                                                        or 0
-                                                    )
-                                                    for e in subgroup_entries
-                                                )
-                                            subgroup_summaries.append(
-                                                {
-                                                    "name": subgroup_name,
-                                                    "entries": subgroup_entries,
-                                                    "total": sub_principal,
-                                                    "alloc": sub_alloc_m,
-                                                    "pnl": sub_pnl_m,
-                                                }
+                                            sub_pnl = sum(
+                                                float(e[1].get("Unrealized P&L", 0) or 0) for e in subgroup_entries
                                             )
-
-                                        def _render_subgroup_summary(card: dict[str, Any]) -> None:
-                                            st.markdown(f"**{card['name']}** · {len(card['entries'])} items")
-                                            alloc_txt = (
-                                                f"{float(card['alloc']):.1f}%"
-                                                if card.get("alloc") is not None
-                                                else "—"
+                                            sub_title = (
+                                                f"{subgroup_name} ({len(subgroup_entries)}) · Principal {disp_ccy} {sub_principal:,.0f} · "
+                                                f"Allocation {sub_alloc:.1f}%"
                                             )
-                                            render_mobile_kv_grid(
-                                                [
-                                                    ("Total", f"{disp_ccy} {float(card['total']):,.0f}"),
-                                                    ("Allocation", alloc_txt),
-                                                    ("P&L", f"{disp_ccy} {float(card['pnl']):,.0f}"),
-                                                ]
+                                            if str(subgroup_name).strip().lower() not in {"real estate", "cash and cds"}:
+                                                sub_ccy = _default_currency_for_asset(str(subgroup_name))
+                                                sub_title += f" · Unrealized P&L {sub_ccy} {sub_pnl:,.0f}"
+                                            table_container = st.expander(
+                                                sub_title,
+                                                expanded=False,
                                             )
-                                            if st.button(
-                                                "Open details",
-                                                key=f"mobile_open_{c.id}_{group_name}_{card['name']}",
-                                            ):
-                                                st.session_state[mobile_drill_key] = {
-                                                    "group": group_name,
-                                                    "subgroup": card["name"],
-                                                    "inv_ids": [inv.id for inv, _ in card["entries"]],
-                                                }
-                                                st.rerun()
-
-                                        render_two_column_cards(subgroup_summaries, _render_subgroup_summary)
-                                    else:
-                                        for subgroup_name, subgroup_entries in subgroup_items:
-                                            sub_principal = sum(
-                                                float(e[1].get("Principal Display", e[1].get("Principal", 0)) or 0)
-                                                for e in subgroup_entries
-                                            )
-                                            visible_cols = _visible_cols_for_group(subgroup_name)
-                                            if group_name == "Debts":
-                                                st.caption(f"Outstanding Balance {disp_ccy} {sub_principal:,.0f}")
-                                                table_container = st.container()
-                                            else:
-                                                sub_alloc = (
-                                                    (sub_principal / equity_principal_total * 100.0)
-                                                    if equity_principal_total > 0
-                                                    else 0.0
+                                        with table_container:
+                                            header = st.columns([1.8, 0.45] + [1.35] * len(visible_cols) + [0.7, 0.45])
+                                            header[0].markdown("**Asset Type**")
+                                            header[1].markdown("** **")
+                                            for hi, name in enumerate(visible_cols):
+                                                header[hi + 2].markdown(f"**{name}**")
+                                            header[-2].markdown("**Done**")
+                                            header[-1].markdown("** **")
+                                            render_table_header_divider(st)
+                                            for inv, row in subgroup_entries:
+                                                row_cols = st.columns([1.8, 0.45] + [1.35] * len(visible_cols) + [0.7, 0.45])
+                                                row_cols[0].markdown(
+                                                    f'<span title="Asset type">{row["Asset Type"]}</span>',
+                                                    unsafe_allow_html=True,
                                                 )
-                                                sub_pnl = sum(
-                                                    float(e[1].get("Unrealized P&L", 0) or 0) for e in subgroup_entries
-                                                )
-                                                sub_title = (
-                                                    f"{subgroup_name} ({len(subgroup_entries)}) · Principal {disp_ccy} {sub_principal:,.0f} · "
-                                                    f"Allocation {sub_alloc:.1f}%"
-                                                )
-                                                if str(subgroup_name).strip().lower() not in {"real estate", "cash and cds"}:
-                                                    sub_ccy = _default_currency_for_asset(str(subgroup_name))
-                                                    sub_title += f" · Unrealized P&L {sub_ccy} {sub_pnl:,.0f}"
-                                                table_container = st.expander(
-                                                    sub_title,
-                                                    expanded=False,
-                                                )
-                                            with table_container:
-                                                header = st.columns([1.8, 0.45] + [1.35] * len(visible_cols) + [0.7, 0.45])
-                                                header[0].markdown("**Asset Type**")
-                                                header[1].markdown("** **")
-                                                for hi, name in enumerate(visible_cols):
-                                                    header[hi + 2].markdown(f"**{name}**")
-                                                header[-2].markdown("**Done**")
-                                                header[-1].markdown("** **")
-                                                for inv, row in subgroup_entries:
-                                                    row_cols = st.columns([1.8, 0.45] + [1.35] * len(visible_cols) + [0.7, 0.45])
-                                                    row_cols[0].markdown(
-                                                        f'<span title="Asset type">{row["Asset Type"]}</span>',
-                                                        unsafe_allow_html=True,
-                                                    )
-                                                    if row_cols[1].button(
-                                                        "✏",
-                                                        key=f"portfolio_edit_{c.id}_{inv.id}",
-                                                        help="Edit this investment",
+                                                if row_cols[1].button(
+                                                    "✏",
+                                                    key=f"portfolio_edit_{c.id}_{inv.id}",
+                                                    help="Edit this investment",
+                                                ):
+                                                    suffix = f"_{c.id}_{inv.id}"
+                                                    for k in list(st.session_state.keys()):
+                                                        if k.startswith("edit_") and k.endswith(suffix):
+                                                            del st.session_state[k]
+                                                    st.session_state[f"edit_inv_target_{c.id}"] = inv.id
+                                                    st.session_state[f"edit_inv_picker_{c.id}"] = inv.id
+                                                    st.rerun()
+                                                for j, name in enumerate(visible_cols):
+                                                    value_for_cell = row[name]
+                                                    if (
+                                                        name == "Principal"
+                                                        and str(row.get("Asset Type", "") or "").strip().lower() == "real estate"
+                                                        and "Principal Display" in row
                                                     ):
-                                                        suffix = f"_{c.id}_{inv.id}"
-                                                        for k in list(st.session_state.keys()):
-                                                            if k.startswith("edit_") and k.endswith(suffix):
-                                                                del st.session_state[k]
-                                                        st.session_state[f"edit_inv_target_{c.id}"] = inv.id
-                                                        st.session_state[f"edit_inv_picker_{c.id}"] = inv.id
-                                                        st.rerun()
-                                                    for j, name in enumerate(visible_cols):
-                                                        value_for_cell = row[name]
-                                                        if (
-                                                            name == "Principal"
-                                                            and str(row.get("Asset Type", "") or "").strip().lower() == "real estate"
-                                                            and "Principal Display" in row
+                                                        value_for_cell = row.get("Principal Display", row[name])
+                                                    cell_text = _fmt_cell(name, value_for_cell)
+                                                    row_cols[j + 2].write(cell_text)
+                                                done_key = f"done_inv_{c.id}_{inv.id}"
+                                                done_checked = row_cols[-2].checkbox(
+                                                    "Done",
+                                                    value=bool(getattr(inv, "is_done", False)),
+                                                    key=done_key,
+                                                    label_visibility="collapsed",
+                                                )
+                                                if done_checked != bool(getattr(inv, "is_done", False)):
+                                                    if done_checked:
+                                                        if not (
+                                                            st.session_state.pending_done_investment_id == inv.id
+                                                            and st.session_state.pending_done_client_id == c.id
                                                         ):
-                                                            value_for_cell = row.get("Principal Display", row[name])
-                                                        cell_text = _fmt_cell(name, value_for_cell)
-                                                        row_cols[j + 2].write(cell_text)
-                                                    done_key = f"done_inv_{c.id}_{inv.id}"
-                                                    done_checked = row_cols[-2].checkbox(
-                                                        "Done",
-                                                        value=bool(getattr(inv, "is_done", False)),
-                                                        key=done_key,
-                                                        label_visibility="collapsed",
-                                                    )
-                                                    if done_checked != bool(getattr(inv, "is_done", False)):
-                                                        if done_checked:
-                                                            if not (
-                                                                st.session_state.pending_done_investment_id == inv.id
-                                                                and st.session_state.pending_done_client_id == c.id
-                                                            ):
-                                                                st.session_state.pending_done_investment_id = inv.id
-                                                                st.session_state.pending_done_client_id = c.id
-                                                                st.rerun()
-                                                        else:
-                                                            inv_to_update = session.get(Investment, inv.id)
-                                                            if inv_to_update:
-                                                                inv_to_update.is_done = False
-                                                                session.commit()
-                                                                st.rerun()
-                                                    if row_cols[-1].button("✖", key=f"row_del_inv_{c.id}_{inv.id}", type="primary"):
-                                                        st.session_state.pending_delete_investment_id = inv.id
-                                                        st.rerun()
+                                                            st.session_state.pending_done_investment_id = inv.id
+                                                            st.session_state.pending_done_client_id = c.id
+                                                            st.rerun()
+                                                    else:
+                                                        inv_to_update = session.get(Investment, inv.id)
+                                                        if inv_to_update:
+                                                            inv_to_update.is_done = False
+                                                            session.commit()
+                                                            st.rerun()
+                                                if row_cols[-1].button("✖", key=f"row_del_inv_{c.id}_{inv.id}", type="primary"):
+                                                    st.session_state.pending_delete_investment_id = inv.id
+                                                    st.rerun()
+                                                render_table_row_divider(st)
                             if "Debts" not in grouped_active:
                                 st.caption("No debt.")
 
@@ -1717,133 +1601,73 @@ button[kind="primary"] {
                         ]
                         actual_incomes = [inc for inc in client_incomes if (getattr(inc, "income_mode", "Actual") or "Actual") == "Actual"]
                         forecast_incomes = [inc for inc in client_incomes if (getattr(inc, "income_mode", "Actual") or "Actual") == "Forecast"]
-                        def _income_actions_row(inc: Income, *, key_prefix: str, compact: bool = False) -> None:
-                            if compact:
-                                a1, a2 = st.columns(2, gap="small")
-                                if a1.button("Edit", key=f"edit_income_{key_prefix}_{c.id}_{inc.id}"):
+                        if actual_incomes:
+                            st.markdown("**Incomes**")
+                            head_c1, head_c2, head_c3, head_c4, head_c5, head_c6, head_c7 = st.columns([1.4, 1.4, 1.0, 2.6, 0.6, 0.6, 0.6])
+                            head_c1.markdown("**Type**")
+                            head_c2.markdown("**Amount**")
+                            head_c3.markdown("**Concurrent**")
+                            head_c4.markdown("**Note**")
+                            render_table_header_divider(st)
+                            for inc in actual_incomes:
+                                row_c1, row_c2, row_c3, row_c4, row_c5, row_c6, row_c7 = st.columns([1.4, 1.4, 1.0, 2.6, 0.6, 0.6, 0.6])
+                                row_c1.write(inc.income_type)
+                                row_c2.write(f"{float(inc.amount or 0.0):,.0f}")
+                                row_c3.write("Yes" if inc.concurrent else "No")
+                                row_c4.write(inc.note or "—")
+                                if row_c5.button("✏", key=f"edit_income_{c.id}_{inc.id}", help="Edit"):
                                     st.session_state[income_edit_key] = inc.id
                                     st.rerun()
-                                if a2.button("Done", key=f"done_income_{key_prefix}_{c.id}_{inc.id}"):
+                                if row_c6.button("✔", key=f"done_income_{c.id}_{inc.id}", help="Done"):
                                     inc_obj = session.get(Income, inc.id)
                                     if inc_obj:
                                         inc_obj.is_done = True
                                         session.commit()
                                     st.rerun()
-                                if st.button("Delete", key=f"del_income_{key_prefix}_{c.id}_{inc.id}", type="primary"):
+                                if row_c7.button("✖", key=f"del_income_{c.id}_{inc.id}", type="primary"):
                                     inc_obj = session.get(Income, inc.id)
                                     if inc_obj:
                                         session.delete(inc_obj)
                                         session.commit()
                                         if st.session_state.get(income_edit_key) == inc.id:
                                             st.session_state[income_edit_key] = None
-                                    st.rerun()
-                                return
-                            a1, a2, a3 = st.columns([1, 1, 1])
-                            if a1.button("Edit", key=f"edit_income_{key_prefix}_{c.id}_{inc.id}"):
-                                st.session_state[income_edit_key] = inc.id
-                                st.rerun()
-                            if a2.button("Done", key=f"done_income_{key_prefix}_{c.id}_{inc.id}"):
-                                inc_obj = session.get(Income, inc.id)
-                                if inc_obj:
-                                    inc_obj.is_done = True
-                                    session.commit()
-                                st.rerun()
-                            if a3.button("Delete", key=f"del_income_{key_prefix}_{c.id}_{inc.id}", type="primary"):
-                                inc_obj = session.get(Income, inc.id)
-                                if inc_obj:
-                                    session.delete(inc_obj)
-                                    session.commit()
-                                    if st.session_state.get(income_edit_key) == inc.id:
-                                        st.session_state[income_edit_key] = None
-                                st.rerun()
-
-                        def _render_income_mobile_card(inc: Income, *, key_prefix: str) -> None:
-                            st.markdown(f"**{inc.income_type}**")
-                            render_mobile_kv_grid(
-                                [
-                                    ("Amount", f"{float(inc.amount or 0.0):,.0f}"),
-                                    ("Concurrent", "Yes" if inc.concurrent else "No"),
-                                ]
-                            )
-                            if inc.note:
-                                st.caption(inc.note)
-                            _income_actions_row(inc, key_prefix=key_prefix, compact=True)
-
-                        if actual_incomes:
-                            st.markdown("**Incomes**")
-                            if mobile_ui:
-                                render_two_column_cards(
-                                    actual_incomes,
-                                    lambda inc: _render_income_mobile_card(inc, key_prefix="actual_mobile"),
-                                )
-                            else:
-                                head_c1, head_c2, head_c3, head_c4, head_c5, head_c6, head_c7 = st.columns([1.4, 1.4, 1.0, 2.6, 0.6, 0.6, 0.6])
-                                head_c1.markdown("**Type**")
-                                head_c2.markdown("**Amount**")
-                                head_c3.markdown("**Concurrent**")
-                                head_c4.markdown("**Note**")
-                                for inc in actual_incomes:
-                                    row_c1, row_c2, row_c3, row_c4, row_c5, row_c6, row_c7 = st.columns([1.4, 1.4, 1.0, 2.6, 0.6, 0.6, 0.6])
-                                    row_c1.write(inc.income_type)
-                                    row_c2.write(f"{float(inc.amount or 0.0):,.0f}")
-                                    row_c3.write("Yes" if inc.concurrent else "No")
-                                    row_c4.write(inc.note or "—")
-                                    if row_c5.button("✏", key=f"edit_income_{c.id}_{inc.id}", help="Edit"):
-                                        st.session_state[income_edit_key] = inc.id
                                         st.rerun()
-                                    if row_c6.button("✔", key=f"done_income_{c.id}_{inc.id}", help="Done"):
-                                        inc_obj = session.get(Income, inc.id)
-                                        if inc_obj:
-                                            inc_obj.is_done = True
-                                            session.commit()
-                                        st.rerun()
-                                    if row_c7.button("✖", key=f"del_income_{c.id}_{inc.id}", type="primary"):
-                                        inc_obj = session.get(Income, inc.id)
-                                        if inc_obj:
-                                            session.delete(inc_obj)
-                                            session.commit()
-                                            if st.session_state.get(income_edit_key) == inc.id:
-                                                st.session_state[income_edit_key] = None
-                                            st.rerun()
+                                render_table_row_divider(st)
                         else:
                             st.caption("No incomes yet.")
 
                         if forecast_incomes:
                             st.markdown("**Forecast Incomes**")
-                            if mobile_ui:
-                                render_two_column_cards(
-                                    forecast_incomes,
-                                    lambda inc: _render_income_mobile_card(inc, key_prefix="forecast_mobile"),
-                                )
-                            else:
-                                f_head_c1, f_head_c2, f_head_c3, f_head_c4, f_head_c5, f_head_c6, f_head_c7 = st.columns([1.4, 1.4, 1.0, 2.6, 0.6, 0.6, 0.6])
-                                f_head_c1.markdown("**Type**")
-                                f_head_c2.markdown("**Amount**")
-                                f_head_c3.markdown("**Concurrent**")
-                                f_head_c4.markdown("**Note**")
-                                for inc in forecast_incomes:
-                                    row_c1, row_c2, row_c3, row_c4, row_c5, row_c6, row_c7 = st.columns([1.4, 1.4, 1.0, 2.6, 0.6, 0.6, 0.6])
-                                    row_c1.write(inc.income_type)
-                                    row_c2.write(f"{float(inc.amount or 0.0):,.0f}")
-                                    row_c3.write("Yes" if inc.concurrent else "No")
-                                    row_c4.write(inc.note or "—")
-                                    if row_c5.button("✏", key=f"edit_income_{c.id}_{inc.id}", help="Edit"):
-                                        st.session_state[income_edit_key] = inc.id
+                            f_head_c1, f_head_c2, f_head_c3, f_head_c4, f_head_c5, f_head_c6, f_head_c7 = st.columns([1.4, 1.4, 1.0, 2.6, 0.6, 0.6, 0.6])
+                            f_head_c1.markdown("**Type**")
+                            f_head_c2.markdown("**Amount**")
+                            f_head_c3.markdown("**Concurrent**")
+                            f_head_c4.markdown("**Note**")
+                            render_table_header_divider(st)
+                            for inc in forecast_incomes:
+                                row_c1, row_c2, row_c3, row_c4, row_c5, row_c6, row_c7 = st.columns([1.4, 1.4, 1.0, 2.6, 0.6, 0.6, 0.6])
+                                row_c1.write(inc.income_type)
+                                row_c2.write(f"{float(inc.amount or 0.0):,.0f}")
+                                row_c3.write("Yes" if inc.concurrent else "No")
+                                row_c4.write(inc.note or "—")
+                                if row_c5.button("✏", key=f"edit_income_{c.id}_{inc.id}", help="Edit"):
+                                    st.session_state[income_edit_key] = inc.id
+                                    st.rerun()
+                                if row_c6.button("✔", key=f"done_income_{c.id}_{inc.id}", help="Done"):
+                                    inc_obj = session.get(Income, inc.id)
+                                    if inc_obj:
+                                        inc_obj.is_done = True
+                                        session.commit()
+                                    st.rerun()
+                                if row_c7.button("✖", key=f"del_income_{c.id}_{inc.id}", type="primary"):
+                                    inc_obj = session.get(Income, inc.id)
+                                    if inc_obj:
+                                        session.delete(inc_obj)
+                                        session.commit()
+                                        if st.session_state.get(income_edit_key) == inc.id:
+                                            st.session_state[income_edit_key] = None
                                         st.rerun()
-                                    if row_c6.button("✔", key=f"done_income_{c.id}_{inc.id}", help="Done"):
-                                        inc_obj = session.get(Income, inc.id)
-                                        if inc_obj:
-                                            inc_obj.is_done = True
-                                            session.commit()
-                                        st.rerun()
-                                    if row_c7.button("✖", key=f"del_income_{c.id}_{inc.id}", type="primary"):
-                                        inc_obj = session.get(Income, inc.id)
-                                        if inc_obj:
-                                            session.delete(inc_obj)
-                                            session.commit()
-                                            if st.session_state.get(income_edit_key) == inc.id:
-                                                st.session_state[income_edit_key] = None
-                                            st.rerun()
+                                render_table_row_divider(st)
                         else:
                             st.caption("No forecast incomes yet.")
 
@@ -1959,118 +1783,60 @@ button[kind="primary"] {
                                 for group_name, entries in sorted(grouped_past.items(), key=lambda x: _subgroup_sort_key(x[0])):
                                     visible_past_cols = [c for c in _visible_cols_for_group(group_name) if c in past_cols]
                                     with st.expander(f"{group_name} ({len(entries)})", expanded=False):
-                                        if mobile_ui:
-                                            def _render_past_inv_card(entry: tuple[Investment, Any]) -> None:
-                                                inv_item, row_item = entry
-                                                ticker_lbl = str(
-                                                    row_item.get("Ticker", "")
-                                                    or getattr(inv_item, "ticker_identifier", "")
-                                                    or ""
-                                                ).strip()
-                                                st.markdown(
-                                                    f"**{row_item['Asset Type']}"
-                                                    f"{f' · {ticker_lbl}' if ticker_lbl else ''}**"
-                                                )
-                                                def _past_col_label(col: str) -> str:
-                                                    if col == "Current Price":
-                                                        return "Closing Price"
-                                                    if col == "Current Value":
-                                                        return "Closing Value"
-                                                    if col == "Unrealized P&L":
-                                                        return "Realized P&L"
-                                                    return col
-
-                                                render_mobile_kv_grid(
-                                                    _build_mobile_metric_pairs(
-                                                        row_item,
-                                                        visible_past_cols,
-                                                        label_for_col=_past_col_label,
-                                                    )
-                                                )
-                                                if st.button("↩ Active", key=f"rollback_inv_mobile_{c.id}_{inv_item.id}"):
-                                                    inv_to_restore = session.get(Investment, inv_item.id)
-                                                    if inv_to_restore:
-                                                        inv_to_restore.is_done = False
-                                                        session.commit()
-                                                        st.success("Investment moved back to active.")
-                                                    st.rerun()
-
-                                            render_two_column_cards(entries, _render_past_inv_card)
-                                        else:
-                                            past_header = st.columns([2.1] + [1.1] * len(visible_past_cols) + [1.0])
-                                            past_header[0].markdown("**Asset Type**")
-                                            for hi, name in enumerate(visible_past_cols):
-                                                display_name = (
-                                                    "Closing Price"
-                                                    if name == "Current Price"
-                                                    else "Closing Value"
-                                                    if name == "Current Value"
-                                                    else "Realized P&L"
-                                                    if name == "Unrealized P&L"
-                                                    else name
-                                                )
-                                                past_header[hi + 1].markdown(f"**{display_name}**")
-                                            past_header[-1].markdown("**Rollback**")
-                                            for inv, row in entries:
-                                                row_cols = st.columns([2.1] + [1.1] * len(visible_past_cols) + [1.0])
-                                                row_cols[0].write(row["Asset Type"])
-                                                for j, name in enumerate(visible_past_cols):
-                                                    row_cols[j + 1].write(_fmt_cell(name, row[name]))
-                                                if row_cols[-1].button("↩ Active", key=f"rollback_inv_{c.id}_{inv.id}"):
-                                                    inv_to_restore = session.get(Investment, inv.id)
-                                                    if inv_to_restore:
-                                                        inv_to_restore.is_done = False
-                                                        session.commit()
-                                                        st.success("Investment moved back to active.")
-                                                    st.rerun()
+                                        past_header = st.columns([2.1] + [1.1] * len(visible_past_cols) + [1.0])
+                                        past_header[0].markdown("**Asset Type**")
+                                        for hi, name in enumerate(visible_past_cols):
+                                            display_name = (
+                                                "Closing Price"
+                                                if name == "Current Price"
+                                                else "Closing Value"
+                                                if name == "Current Value"
+                                                else "Realized P&L"
+                                                if name == "Unrealized P&L"
+                                                else name
+                                            )
+                                            past_header[hi + 1].markdown(f"**{display_name}**")
+                                        past_header[-1].markdown("**Rollback**")
+                                        render_table_header_divider(st)
+                                        for inv, row in entries:
+                                            row_cols = st.columns([2.1] + [1.1] * len(visible_past_cols) + [1.0])
+                                            row_cols[0].write(row["Asset Type"])
+                                            for j, name in enumerate(visible_past_cols):
+                                                row_cols[j + 1].write(_fmt_cell(name, row[name]))
+                                            if row_cols[-1].button("↩ Active", key=f"rollback_inv_{c.id}_{inv.id}"):
+                                                inv_to_restore = session.get(Investment, inv.id)
+                                                if inv_to_restore:
+                                                    inv_to_restore.is_done = False
+                                                    session.commit()
+                                                    st.success("Investment moved back to active.")
+                                                st.rerun()
+                                            render_table_row_divider(st)
 
                             if past_done_incomes:
                                 with st.expander(f"Past Activities ({len(past_done_incomes)})", expanded=False):
-                                    if mobile_ui:
-                                        def _render_past_activity_card(inc: Income) -> None:
-                                            st.markdown(f"**{inc.income_type}**")
-                                            render_mobile_kv_grid(
-                                                [
-                                                    ("Amount", f"{float(inc.amount or 0.0):,.0f}"),
-                                                    ("Concurrent", "Yes" if inc.concurrent else "No"),
-                                                    (
-                                                        "Mode",
-                                                        getattr(inc, "income_mode", "Actual") or "Actual",
-                                                    ),
-                                                    ("Note", inc.note or "—"),
-                                                ]
-                                            )
-                                            if st.button("↩ Active", key=f"rollback_income_mobile_{c.id}_{inc.id}"):
-                                                inc_obj = session.get(Income, inc.id)
-                                                if inc_obj:
-                                                    inc_obj.is_done = False
-                                                    session.commit()
-                                                    st.success("Activity moved back to active.")
-                                                st.rerun()
-
-                                        render_two_column_cards(past_done_incomes, _render_past_activity_card)
-                                    else:
-                                        pa_head = st.columns([1.4, 1.4, 1.0, 1.0, 2.4, 1.0])
-                                        pa_head[0].markdown("**Type**")
-                                        pa_head[1].markdown("**Amount**")
-                                        pa_head[2].markdown("**Concurrent**")
-                                        pa_head[3].markdown("**Mode**")
-                                        pa_head[4].markdown("**Note**")
-                                        pa_head[5].markdown("**Rollback**")
-                                        for inc in past_done_incomes:
-                                            rc = st.columns([1.4, 1.4, 1.0, 1.0, 2.4, 1.0])
-                                            rc[0].write(inc.income_type)
-                                            rc[1].write(f"{float(inc.amount or 0.0):,.0f}")
-                                            rc[2].write("Yes" if inc.concurrent else "No")
-                                            rc[3].write(getattr(inc, "income_mode", "Actual") or "Actual")
-                                            rc[4].write(inc.note or "—")
-                                            if rc[5].button("↩ Active", key=f"rollback_income_{c.id}_{inc.id}"):
-                                                inc_obj = session.get(Income, inc.id)
-                                                if inc_obj:
-                                                    inc_obj.is_done = False
-                                                    session.commit()
-                                                    st.success("Activity moved back to active.")
-                                                st.rerun()
+                                    pa_head = st.columns([1.4, 1.4, 1.0, 1.0, 2.4, 1.0])
+                                    pa_head[0].markdown("**Type**")
+                                    pa_head[1].markdown("**Amount**")
+                                    pa_head[2].markdown("**Concurrent**")
+                                    pa_head[3].markdown("**Mode**")
+                                    pa_head[4].markdown("**Note**")
+                                    pa_head[5].markdown("**Rollback**")
+                                    render_table_header_divider(st)
+                                    for inc in past_done_incomes:
+                                        rc = st.columns([1.4, 1.4, 1.0, 1.0, 2.4, 1.0])
+                                        rc[0].write(inc.income_type)
+                                        rc[1].write(f"{float(inc.amount or 0.0):,.0f}")
+                                        rc[2].write("Yes" if inc.concurrent else "No")
+                                        rc[3].write(getattr(inc, "income_mode", "Actual") or "Actual")
+                                        rc[4].write(inc.note or "—")
+                                        if rc[5].button("↩ Active", key=f"rollback_income_{c.id}_{inc.id}"):
+                                            inc_obj = session.get(Income, inc.id)
+                                            if inc_obj:
+                                                inc_obj.is_done = False
+                                                session.commit()
+                                                st.success("Activity moved back to active.")
+                                            st.rerun()
+                                        render_table_row_divider(st)
 
                     elif client_tab == "More":
                         selected_edit_id = st.session_state.get(f"edit_inv_target_{c.id}")
