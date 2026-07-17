@@ -6,6 +6,16 @@ openpyxl
 yfinance
 vnstock
 requests
+certifi
+truststore
 beautifulsoup4
 lxml
 python-telegram-bot
+feedparser
+aiohttp
+httpx
+openai>=1.40.0
+anthropic>=0.34.0
+google-generativeai>=0.8.0
+python-dotenv>=1.0.0
+pytest>=8.0.0

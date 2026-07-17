@@ -1,0 +1,6 @@
+intel_settings.json
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv_deps/

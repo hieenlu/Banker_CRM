@@ -50,6 +50,12 @@ def init_db(db_url: str) -> None:
     engine = make_engine(db_url)
     Base.metadata.create_all(bind=engine)
     _run_lightweight_migrations(engine)
+    try:
+        from intel_terminal.db.session import init_intel_tables
+
+        init_intel_tables(engine)
+    except ImportError:
+        pass
 
 
 def _run_lightweight_migrations(engine) -> None:
