@@ -4,7 +4,7 @@ import json
 import time
 import re
 from email.utils import parsedate_to_datetime
-from datetime import datetime, date
+from datetime import date, datetime, timezone
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -20,6 +20,13 @@ from utils import keywords_hash
 NEWS_TIMEOUT_SECS = 20
 USER_AGENT = "BankerCRM/1.0 (local personal project; contact: none)"
 X_PROFILES_DEFAULT = ["KobeissiLetter", "citrini"]
+# Public Nitter mirrors — tried in order; first success wins.
+NITTER_RSS_HOSTS = (
+    "https://nitter.net",
+    "https://nitter.privacydev.net",
+    "https://nitter.poast.org",
+    "https://nitter.cz",
+)
 
 
 STOPWORDS = {
@@ -226,24 +233,63 @@ def scrape_yahoo_finance_news(keyword: str, limit: int = 10) -> list[dict[str, A
     return results
 
 
-def scrape_x_profile_rss(profile: str, limit: int = 10) -> list[dict[str, Any]]:
-    handle = (profile or "").strip().lstrip("@")
-    if not handle:
-        return []
-    rss_url = f"https://nitter.net/{handle}/rss"
-    resp = requests.get(rss_url, headers={"User-Agent": USER_AGENT}, timeout=NEWS_TIMEOUT_SECS)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.content, "xml")
-    items = soup.find_all("item")
+def _nitter_link_to_x(link: str, handle: str) -> str:
+    """Rewrite Nitter post URLs to x.com so readers land on the public profile."""
+    raw = (link or "").strip()
+    if not raw:
+        return f"https://x.com/{handle}"
+    lowered = raw.lower()
+    for marker in ("https://", "http://"):
+        if not lowered.startswith(marker):
+            continue
+        rest = raw[len(marker) :]
+        host, sep, path = rest.partition("/")
+        host_l = host.lower()
+        if host_l == "nitter.net" or host_l.startswith("nitter."):
+            return f"https://x.com/{path}" if sep and path else f"https://x.com/{handle}"
+        break
+    return raw
 
+
+def _status_id_from_link(link: str) -> int | None:
+    m = re.search(r"/status/(\d+)", link or "")
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except ValueError:
+        return None
+
+
+def _snowflake_to_iso(status_id: int) -> str:
+    """Convert an X snowflake status id to a UTC ISO timestamp."""
+    # Twitter epoch: 2010-11-04T01:42:54.657Z
+    ms = (status_id >> 22) + 1288834974657
+    return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def _looks_like_rss(content: bytes) -> bool:
+    head = (content or b"")[:400].lower()
+    return b"<rss" in head or b"<feed" in head or b"<item>" in head
+
+
+def _parse_nitter_rss_items(content: bytes, handle: str, limit: int) -> list[dict[str, Any]]:
+    soup = BeautifulSoup(content, "xml")
+    items = soup.find_all("item")
     results: list[dict[str, Any]] = []
     for item in items[:limit]:
         title_tag = item.find("title")
         link_tag = item.find("link")
         pub_tag = item.find("pubDate")
         title = title_tag.get_text(strip=True) if title_tag else ""
-        link = link_tag.get_text(strip=True) if link_tag else ""
+        link = _nitter_link_to_x(
+            link_tag.get_text(strip=True) if link_tag else "",
+            handle,
+        )
         date_s = _parse_pubdate(pub_tag.get_text(strip=True) if pub_tag else None)
+        status_id = _status_id_from_link(link)
+        if status_id and (not date_s or date_s == ""):
+            date_s = _snowflake_to_iso(status_id)
         if title and link:
             results.append(
                 {
@@ -251,10 +297,157 @@ def scrape_x_profile_rss(profile: str, limit: int = 10) -> list[dict[str, Any]]:
                     "source": f"X @{handle}",
                     "date": date_s,
                     "link": link,
+                    "handle": handle,
                     "tags": _core_topic_tags(title),
                 }
             )
     return results
+
+
+def _clean_jina_post_body(raw: str) -> str:
+    """Normalize Jina markdown tweet text into a plain headline."""
+    text = raw or ""
+    # Flatten whitespace early so engagement tails are easier to detect.
+    text = text.replace("\r", "\n")
+    # Drop empty media / action links and view-count pseudo-links.
+    text = re.sub(r"\[\]\((https?://[^)]+)\)", " ", text)
+    text = re.sub(r"\[[^\]]*\dK?[^\]]*\]\((https?://[^)]+/quotes?)\)", " ", text, flags=re.I)
+    # Keep cashtag / mention label text from remaining markdown links.
+    text = re.sub(r"\[([^\]]+)\]\((https?://[^)]+)\)", r"\1", text)
+    text = re.sub(r"!\[[^\]]*\]\([^)]+\)", " ", text)
+    text = re.sub(r"Show more", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text)
+    # Drop trailing X engagement counters (likes/reposts/views) and profile echoes.
+    text = re.sub(
+        r"(?:\s+\d[\d.,]*K?){3,}.*$",
+        "",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"(?:\s+\*\s+.*)$", "", text)
+    return text.strip(" \t\r\n-•")
+
+
+def _scrape_x_profile_via_jina(handle: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Fallback: read the public x.com profile through Jina's reader API."""
+    url = f"https://r.jina.ai/https://x.com/{handle}"
+    resp = requests.get(
+        url,
+        headers={
+            "User-Agent": USER_AGENT,
+            "X-Return-Format": "markdown",
+            "Accept": "text/plain",
+        },
+        timeout=max(NEWS_TIMEOUT_SECS, 30),
+    )
+    resp.raise_for_status()
+    text = resp.text or ""
+
+    marker = re.compile(
+        rf"\[([^\]]+)\]\((https://x\.com/{re.escape(handle)}/status/\d+)\)",
+        re.IGNORECASE,
+    )
+    matches = list(marker.finditer(text))
+    results: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for idx, match in enumerate(matches):
+        link = match.group(2).strip()
+        if link in seen:
+            continue
+        start = match.end()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+        body = _clean_jina_post_body(text[start:end])
+        if not body or len(body) < 12:
+            continue
+        # Skip empty quote/media-only shells.
+        if body.lower() in {"show more", "quote", "quotes"}:
+            continue
+        seen.add(link)
+        status_id = _status_id_from_link(link)
+        date_s = _snowflake_to_iso(status_id) if status_id else ""
+        results.append(
+            {
+                "headline": body[:280],
+                "source": f"X @{handle}",
+                "date": date_s,
+                "link": link,
+                "handle": handle,
+                "tags": _core_topic_tags(body),
+            }
+        )
+        if len(results) >= limit:
+            break
+    return results
+
+
+def scrape_x_profile_rss(profile: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Fetch recent posts for an X handle (Jina reader, then Nitter RSS mirrors)."""
+    handle = (profile or "").strip().lstrip("@")
+    if not handle:
+        return []
+
+    last_error: Exception | None = None
+    try:
+        fallback = _scrape_x_profile_via_jina(handle, limit=limit)
+        if fallback:
+            return fallback
+    except Exception as exc:
+        last_error = exc
+
+    for host in NITTER_RSS_HOSTS:
+        rss_url = f"{host.rstrip('/')}/{handle}/rss"
+        try:
+            resp = requests.get(
+                rss_url,
+                headers={"User-Agent": USER_AGENT},
+                timeout=min(NEWS_TIMEOUT_SECS, 8),
+            )
+            resp.raise_for_status()
+            if not _looks_like_rss(resp.content):
+                last_error = RuntimeError(f"{host} returned non-RSS content")
+                continue
+            parsed = _parse_nitter_rss_items(resp.content, handle, limit)
+            if parsed:
+                return parsed
+            last_error = RuntimeError(f"{host} RSS had no items")
+        except Exception as exc:  # Best-effort across mirrors.
+            last_error = exc
+            continue
+
+    if last_error is not None:
+        raise last_error
+    return []
+
+
+def scrape_x_analyst_feeds(
+    profiles: list[str] | None = None,
+    *,
+    limit_per_profile: int = 12,
+) -> list[dict[str, Any]]:
+    """Fetch recent posts for the configured X analyst accounts."""
+    handles = profiles or list(X_PROFILES_DEFAULT)
+    aggregated: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for handle in handles:
+        try:
+            aggregated.extend(scrape_x_profile_rss(handle, limit=limit_per_profile))
+        except Exception as exc:
+            errors.append(f"@{handle.lstrip('@')}: {exc}")
+        time.sleep(0.35)
+
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for item in aggregated:
+        link = str(item.get("link") or "")
+        if not link or link in seen:
+            continue
+        seen.add(link)
+        deduped.append(item)
+
+    deduped.sort(key=lambda r: str(r.get("date") or ""), reverse=True)
+    if errors and not deduped:
+        raise RuntimeError("; ".join(errors[:3]))
+    return deduped
 
 
 def scrape_news(
