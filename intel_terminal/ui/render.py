@@ -29,9 +29,10 @@ from intel_terminal.ui.legacy_news import render_legacy_keyword_news
 from intel_terminal.ui.markets import render_markets_dashboard_column
 from intel_terminal.ui.styles import intel_terminal_css
 from intel_terminal.ui.vietnam import render_vietnam_dashboard_column
+from intel_terminal.ui.x_feeds import render_x_feeds_dashboard_column
 
 
-INTEL_PAGES: tuple[str, ...] = ("Dashboard", "Latest News", "Archive")
+INTEL_PAGES: tuple[str, ...] = ("Dashboard", "Latest News", "Briefing & AI", "Archive")
 
 
 def _refresh_news(session: Session, *, region: str | None = None) -> None:
@@ -116,12 +117,16 @@ def _article_stats(session: Session) -> dict[str, int]:
     return {"total": int(total or 0), "vietnam": int(vietnam or 0)}
 
 
-def _dashboard_briefing_column(session: Session) -> None:
-    st.markdown("##### Briefing & AI")
+def _page_briefing_ai(session: Session) -> None:
+    """Dedicated tab for daily briefing generation and AI article summaries."""
+    st.markdown("#### Briefing & AI")
+    st.caption("Daily market briefing and cached AI article summaries")
+    st.markdown('<hr class="intel-metrics-rule" />', unsafe_allow_html=True)
+
     paper = get_newspaper_for_date(session, datetime.utcnow().date())
     col_a, col_b = st.columns([2, 1])
     with col_a:
-        if st.button("Generate briefing", key="intel_dash_gen_paper"):
+        if st.button("Generate briefing", key="intel_briefing_gen_paper"):
             with st.spinner("Generating…"):
                 result = generate_daily_newspaper(session, force=False)
                 session.commit()
@@ -131,7 +136,7 @@ def _dashboard_briefing_column(session: Session) -> None:
                 st.success(f"{result.market_regime}")
                 st.rerun()
     with col_b:
-        if st.button("Run AI", key="intel_dash_run_agents"):
+        if st.button("Run AI", key="intel_briefing_run_agents"):
             cfg = load_config()
             ready, msg = llm_runtime_status(cfg)
             if not ready:
@@ -149,20 +154,20 @@ def _dashboard_briefing_column(session: Session) -> None:
         except Exception:
             content = {}
         st.caption(f"{paper.market_regime} · {fmt_dt(paper.created_at)}")
-        render_newspaper_sections(content, paper.market_regime, compact=True)
+        render_newspaper_sections(content, paper.market_regime, compact=False)
     else:
-        st.caption("No daily briefing yet.")
+        st.caption("No daily briefing yet — generate one above.")
 
-    st.markdown("###### AI summaries")
+    st.markdown("##### AI summaries")
     rows = session.execute(
         select(Article, ArticleSummary)
         .join(ArticleSummary, ArticleSummary.article_id == Article.id)
         .order_by(desc(ArticleSummary.created_at))
-        .limit(6)
+        .limit(12)
     ).all()
-    render_summary_cards([(a, s) for a, s in rows], limit=5)
+    render_summary_cards([(a, s) for a, s in rows], limit=10)
 
-    q = st.text_input("Search", placeholder="Search headlines…", key="intel_dash_search")
+    q = st.text_input("Search", placeholder="Search headlines…", key="intel_briefing_search")
     if q and len(q.strip()) >= 2:
         term = f"%{q.strip()}%"
         hits = list(
@@ -170,7 +175,7 @@ def _dashboard_briefing_column(session: Session) -> None:
                 select(Article)
                 .where(or_(Article.title.ilike(term), Article.body_text.ilike(term)))
                 .order_by(desc(func.coalesce(Article.published_at, Article.fetched_at)))
-                .limit(8)
+                .limit(12)
             )
             .scalars()
             .all()
@@ -201,7 +206,7 @@ def _page_dashboard(
             session, mobile_ui=True, techcom_reports_fn=techcom_reports_fn
         )
         st.markdown('<hr class="intel-section-rule" />', unsafe_allow_html=True)
-        _dashboard_briefing_column(session)
+        render_x_feeds_dashboard_column(session, mobile_ui=True)
     else:
         left, mid, right = st.columns([1.15, 1.05, 1.0], gap="large")
         with left:
@@ -214,7 +219,7 @@ def _page_dashboard(
             )
         with right:
             st.markdown('<span class="intel-col-marker"></span>', unsafe_allow_html=True)
-            _dashboard_briefing_column(session)
+            render_x_feeds_dashboard_column(session, mobile_ui=False)
 
     st.markdown('<hr class="intel-section-rule" />', unsafe_allow_html=True)
     with st.expander("Settings & tools", expanded=False):
@@ -621,7 +626,7 @@ def render_intel_terminal(
     st.markdown(intel_terminal_css(), unsafe_allow_html=True)
     st.markdown('<div class="intel-wrap intel-terminal">', unsafe_allow_html=True)
     st.subheader("AI Financial Intelligence Terminal")
-    st.caption("US/KR/TW markets · Vietnam finance/economy/RE · briefings")
+    st.caption("US/KR/TW markets · Vietnam · X analysts · briefings")
 
     current = _render_nav()
     _render_news_toolbar(session)
@@ -630,6 +635,8 @@ def render_intel_terminal(
         _page_dashboard(session, mobile_ui, techcom_reports_fn)
     elif current == "Latest News":
         _page_latest(session, mobile_ui)
+    elif current == "Briefing & AI":
+        _page_briefing_ai(session)
     else:
         _page_archive(session)
 
