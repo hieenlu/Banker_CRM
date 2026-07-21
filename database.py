@@ -1,11 +1,15 @@
+"""Database engine helpers — SQLite (local) and Postgres (Phase 1+)."""
+
 from __future__ import annotations
 
 import json
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
+from urllib.parse import urlparse
 
 from sqlalchemy import create_engine, inspect, text
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from models import Base
@@ -41,15 +45,42 @@ def save_usd_vnd_rate(rate: float) -> None:
     save_app_settings(data)
 
 
-def make_engine(db_url: str):
-    # check_same_thread=False helps Streamlit; sqlite file is local.
-    return create_engine(db_url, connect_args={"check_same_thread": False})
+def is_sqlite_url(db_url: str) -> bool:
+    return urlparse(db_url).scheme.startswith("sqlite")
+
+
+def is_postgres_url(db_url: str) -> bool:
+    scheme = urlparse(db_url).scheme
+    return scheme in {"postgresql", "postgres", "postgresql+psycopg", "postgresql+psycopg2"}
+
+
+def normalize_db_url(db_url: str) -> str:
+    """
+    Prefer psycopg v3 driver for Postgres URLs.
+    Accepts postgresql://... from Neon/Supabase and rewrites to postgresql+psycopg://...
+    """
+    url = (db_url or "").strip()
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://") :]
+    if url.startswith("postgresql://") and "+psycopg" not in url and "+psycopg2" not in url:
+        url = "postgresql+psycopg://" + url[len("postgresql://") :]
+    return url
+
+
+def make_engine(db_url: str) -> Engine:
+    url = normalize_db_url(db_url)
+    if is_sqlite_url(url):
+        # check_same_thread=False helps Streamlit; sqlite file is local.
+        return create_engine(url, connect_args={"check_same_thread": False})
+    # Postgres / other dialects
+    return create_engine(url, pool_pre_ping=True)
 
 
 def init_db(db_url: str) -> None:
     engine = make_engine(db_url)
     Base.metadata.create_all(bind=engine)
-    _run_lightweight_migrations(engine)
+    if is_sqlite_url(normalize_db_url(db_url)):
+        _run_lightweight_migrations(engine)
     try:
         from intel_terminal.db.session import init_intel_tables
 
@@ -143,4 +174,3 @@ def get_session(db_url: str) -> Iterator[Session]:
         raise
     finally:
         session.close()
-
