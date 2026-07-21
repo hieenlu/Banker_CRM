@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv_deps/
+banker_crm.sqlite3
+*.sqlite3-journal
