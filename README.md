@@ -5,6 +5,7 @@ Lightweight personal CRM for a financial banker:
 - Reminders (birthdays, investment maturities, manual reminders)
 - News scraper (Google News RSS + Yahoo Finance)
 - Telegram notifications (optional)
+- **Phase 2:** FastAPI over the same DB (`docs/PHASE2_API.md`)
 
 ## Setup
 
@@ -13,11 +14,23 @@ From this folder:
 pip install -r requirements.txt
 ```
 
-## Run
+## Run (Streamlit)
 
 ```bash
 streamlit run app.py
 ```
+
+## Run (API — Phase 2)
+
+```bash
+export CRM_API_USER=banker
+export CRM_API_PASSWORD='changeme'
+export CRM_JWT_SECRET='dev-secret'
+uvicorn api.main:app --reload --port 8000
+```
+
+Docs: http://127.0.0.1:8000/docs  
+Point `CRM_DB_URL` at Neon/Supabase Postgres (Phase 1) or leave unset for local SQLite.
 
 ## Telegram configuration (required to send notifications)
 
@@ -35,6 +48,5 @@ TELEGRAM_BOT_TOKEN="..." TELEGRAM_CHAT_ID="..." streamlit run app.py
 
 ## Notes
 
-- Everything runs locally (SQLite DB created automatically on first run).
+- Default DB is local SQLite; set `CRM_DB_URL` for hosted Postgres (see `docs/PHASE1_POSTGRES.md`).
 - Live price and news scraping require network access.
-# Banker_CRM
