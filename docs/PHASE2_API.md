@@ -61,4 +61,5 @@ export CRM_DB_URL='postgresql://…'
 - [ ] Optional: Streamlit calls API instead of ORM (Phase 4 prep)
 
 ## Next (Phase 3)
-R2/S3 file keys for Techcombank PDFs and client attachments.
+Implemented as a stacked change. See `docs/PHASE3_FILES.md` for R2/S3 client
+attachments, Techcombank PDF mirroring, and export ZIPs.

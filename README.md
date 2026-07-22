@@ -6,6 +6,7 @@ Lightweight personal CRM for a financial banker:
 - News scraper (Google News RSS + Yahoo Finance)
 - Telegram notifications (optional)
 - **Phase 2:** FastAPI over the same DB (`docs/PHASE2_API.md`)
+- **Phase 3:** Cloudflare R2 / AWS S3 file storage (`docs/PHASE3_FILES.md`)
 
 ## Setup
 
