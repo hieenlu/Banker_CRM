@@ -79,4 +79,7 @@ streamlit run app.py
 - [ ] Local SQLite kept as cold backup (do not delete yet)
 
 ## Next (Phase 2)
-FastAPI CRUD over the same Postgres models.
+See `docs/PHASE2_API.md` — FastAPI CRUD over the same Postgres models.
+```bash
+uvicorn api.main:app --reload --port 8000
+```
