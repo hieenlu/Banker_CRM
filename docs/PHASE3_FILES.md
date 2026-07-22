@@ -117,3 +117,4 @@ path.
 
 ## Next
 Phase 4 web UI can call these APIs without handling bucket credentials.
+See `docs/PHASE4_WEB.md`.

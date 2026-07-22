@@ -7,6 +7,8 @@ Lightweight personal CRM for a financial banker:
 - Telegram notifications (optional)
 - **Phase 2:** FastAPI over the same DB (`docs/PHASE2_API.md`)
 - **Phase 3:** Cloudflare R2 / AWS S3 file storage (`docs/PHASE3_FILES.md`)
+- **Phase 4:** Next.js web desk (`docs/PHASE4_WEB.md`)
+- **Phase 3:** Cloudflare R2 / AWS S3 file storage (`docs/PHASE3_FILES.md`)
 
 ## Setup
 
@@ -32,6 +34,21 @@ uvicorn api.main:app --reload --port 8000
 
 Docs: http://127.0.0.1:8000/docs  
 Point `CRM_DB_URL` at Neon/Supabase Postgres (Phase 1) or leave unset for local SQLite.
+
+
+## Run (Web — Phase 4)
+
+```bash
+# terminal 1 — API
+export CRM_API_USER=banker CRM_API_PASSWORD='changeme' CRM_JWT_SECRET='dev-secret'
+export CRM_STORAGE_BACKEND=local CRM_LOCAL_STORAGE_PATH="$(pwd)/data/files"
+uvicorn api.main:app --reload --port 8000
+
+# terminal 2 — web
+cd web && npm install && npm run dev
+```
+
+Open http://127.0.0.1:3000 — see `docs/PHASE4_WEB.md`.
 
 ## Telegram configuration (required to send notifications)
 
