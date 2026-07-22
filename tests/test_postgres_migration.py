@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from database import is_postgres_url, is_sqlite_url, normalize_db_url
-from models import Base, Client, Investment
+from models import Base, Client, Investment, StoredFile
 from scripts.migrate_sqlite_to_postgres import TABLE_ORDER, migrate, verify_counts
 
 
@@ -58,6 +58,19 @@ def test_migrate_sqlite_to_sqlite_preserves_rows(tmp_path: Path):
                 currency="USD",
             )
         )
+        session.add(
+            StoredFile(
+                kind="client_attachment",
+                backend="local",
+                bucket="local",
+                object_key="banker-crm/clients/1/1-test.pdf",
+                content_type="application/pdf",
+                size_bytes=4,
+                sha256="a" * 64,
+                client_id=c.id,
+                original_filename="test.pdf",
+            )
+        )
         session.commit()
 
     counts = migrate(src_url, dst_url)
@@ -66,6 +79,8 @@ def test_migrate_sqlite_to_sqlite_preserves_rows(tmp_path: Path):
     assert by_name["clients"].ok
     assert by_name["investments"].source == 1
     assert by_name["investments"].ok
+    assert by_name["stored_files"].source == 1
+    assert by_name["stored_files"].ok
 
     # All known tables present in verify list
     assert [c.table for c in counts] == list(TABLE_ORDER)

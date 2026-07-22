@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 
+from api.config import get_settings
 from api.deps import CurrentUser, DbSession
 from api.schemas.clients import ClientCreate, ClientOut, ClientUpdate
 from api.schemas.common import Message, Page, paginate
-from models import Client
+from models import Client, StoredFile
+from storage.service import get_storage_for_row
 
 router = APIRouter(prefix="/clients", tags=["clients"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=Page[ClientOut])
@@ -87,6 +92,28 @@ def delete_client(client_id: int, session: DbSession, _user: CurrentUser) -> Mes
     row = session.get(Client, client_id)
     if not row:
         raise HTTPException(status_code=404, detail="Client not found")
+    attachments = list(
+        session.execute(
+            select(StoredFile).where(
+                StoredFile.client_id == client_id,
+                StoredFile.kind == "client_attachment",
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for attachment in attachments:
+        attachment.status = "deleting"
+    session.commit()
+    try:
+        for attachment in attachments:
+            get_storage_for_row(get_settings(), attachment).delete(attachment.object_key)
+    except Exception as exc:
+        logger.exception("Client attachment cleanup failed")
+        raise HTTPException(
+            status_code=502,
+            detail="Client file cleanup failed",
+        ) from exc
     session.delete(row)
     session.flush()
     return Message(detail="Client deleted")
