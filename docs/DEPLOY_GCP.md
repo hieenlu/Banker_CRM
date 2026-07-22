@@ -20,7 +20,10 @@ public HTTPS URL from **iPad Safari** (any network, not just home Wi‑Fi).
 gcloud auth login
 gcloud auth application-default login
 gcloud config set project YOUR_PROJECT_ID
+gcloud auth application-default set-quota-project YOUR_PROJECT_ID
 ```
+
+If `gcloud builds.submit` returns `PERMISSION_DENIED` even as Owner, set the ADC quota project (command above) and retry after Cloud Build API has been enabled for a minute or two.
 
 4. (Strongly recommended) Point at Postgres so data survives restarts:
 
