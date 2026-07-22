@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/ui";
 
 const TABS: Array<{ href: string; label: string; exact?: boolean }> = [
   { href: "/news", label: "Dashboard", exact: true },
-  { href: "/news/latest", label: "Latest" },
+  { href: "/news/latest", label: "Latest News" },
   { href: "/news/briefing", label: "Briefing & AI" },
   { href: "/news/archive", label: "Archive" },
 ];
@@ -27,7 +27,7 @@ export function NewsTabs({
   return (
     <>
       <PageHeader title={title} description={description} actions={actions} />
-      <div className="segmented" style={{ marginBottom: "1rem" }}>
+      <div className="segmented" style={{ marginBottom: "1rem" }} role="tablist">
         {TABS.map((tab) => {
           const active = tab.exact
             ? pathname === tab.href

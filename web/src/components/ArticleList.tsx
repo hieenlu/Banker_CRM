@@ -8,39 +8,58 @@ import type { Article } from "@/lib/types";
 export function ArticleList({
   items,
   onToggleBookmark,
+  compact = false,
 }: {
   items: Article[];
   onToggleBookmark?: (article: Article) => void;
+  compact?: boolean;
 }) {
   return (
     <ul className="article-list">
       {items.map((article) => (
         <li key={article.id} className="article-item">
-          <div className="toolbar" style={{ justifyContent: "space-between" }}>
+          <div>
             <a
-              className="linkish"
+              className="article-title"
               href={article.url}
               target="_blank"
               rel="noreferrer"
             >
               {article.title}
             </a>
+            {!compact ? (
+              <div className="article-meta" style={{ justifyContent: "flex-start", textAlign: "left" }}>
+                {article.category && article.category !== "Uncategorized" ? (
+                  <span className="tag">{article.category}</span>
+                ) : null}
+                <span>{article.source}</span>
+              </div>
+            ) : null}
+          </div>
+          <div className={`article-meta ${compact ? "" : "article-meta-side"}`}>
+            {compact ? (
+              <>
+                <span className="tag">{article.category}</span>
+                <span>{article.source}</span>
+              </>
+            ) : (
+              <>
+                <span>{article.region === "vietnam" ? "Vietnam" : "Global"}</span>
+                <span>
+                  {formatDateTime(article.published_at || article.fetched_at)}
+                </span>
+              </>
+            )}
             {onToggleBookmark ? (
               <button
                 type="button"
                 className="btn btn-ghost"
+                style={{ minHeight: 28, padding: "0.15rem 0.5rem" }}
                 onClick={() => onToggleBookmark(article)}
               >
-                {article.bookmarked ? "Unbookmark" : "Bookmark"}
+                {article.bookmarked ? "★" : "☆"}
               </button>
             ) : null}
-          </div>
-          <div className="article-meta">
-            <span className="tag">{article.category}</span>
-            <span>{article.source}</span>
-            <span>{article.region}</span>
-            <span>{formatDateTime(article.published_at || article.fetched_at)}</span>
-            <span>rel {article.relevance_score.toFixed(2)}</span>
           </div>
         </li>
       ))}

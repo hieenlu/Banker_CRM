@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Source_Sans_3 } from "next/font/google";
+import { IBM_Plex_Sans, Source_Sans_3 } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import "./globals.css";
 
-const display = Bricolage_Grotesque({
+const display = IBM_Plex_Sans({
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
   variable: "--font-display-loaded",
 });
 
@@ -14,12 +15,12 @@ const body = Source_Sans_3({
 });
 
 export const metadata: Metadata = {
-  title: "Banker CRM",
+  title: "Banker Personal CRM",
   description: "Personal banker CRM and market news desk",
   appleWebApp: {
     capable: true,
     title: "Banker CRM",
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
   },
 };
 
@@ -27,7 +28,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#e8eef1",
+  themeColor: "#141414",
 };
 
 export default function RootLayout({

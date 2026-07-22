@@ -33,7 +33,7 @@ export default function LoginPage() {
   return (
     <div className="login-screen">
       <div className="login-card">
-        <p className="brand-mark">Banker CRM</p>
+        <p className="brand-mark">Banker Personal CRM</p>
         <span className="brand-sub">Sign in to your personal desk</span>
         <form className="login-form" onSubmit={onSubmit}>
           <ErrorBanner message={error} />

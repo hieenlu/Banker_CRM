@@ -7,9 +7,9 @@ import { useAuth, useRequireAuth } from "./AuthProvider";
 
 const NAV = [
   { href: "/clients", label: "Clients" },
-  { href: "/portfolio", label: "Portfolio" },
   { href: "/reminders", label: "Reminders" },
   { href: "/news", label: "Market News" },
+  { href: "/settings", label: "Settings" },
 ] as const;
 
 function NavLink({
@@ -42,7 +42,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (!auth.ready) {
     return (
       <div className="boot-screen">
-        <p className="brand-mark">Banker CRM</p>
+        <p className="brand-mark">Banker Personal CRM</p>
         <p className="muted">Connecting…</p>
       </div>
     );
@@ -51,7 +51,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   if (!auth.username) {
     return (
       <div className="boot-screen">
-        <p className="brand-mark">Banker CRM</p>
+        <p className="brand-mark">Banker Personal CRM</p>
         <p className="muted">Redirecting to login…</p>
       </div>
     );
@@ -61,20 +61,30 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="shell">
       <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
         <div className="sidebar-brand">
-          <span className="brand-mark">Banker CRM</span>
+          <span className="brand-mark">Banker Personal CRM</span>
           <span className="brand-sub">Personal desk</span>
         </div>
-        <nav className="sidebar-nav" aria-label="Primary">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.href}
-              {...item}
-              onNavigate={() => setOpen(false)}
-            />
-          ))}
-        </nav>
+        <div>
+          <p className="sidebar-section-label">Navigation</p>
+          <nav className="sidebar-nav" aria-label="Primary">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.href}
+                {...item}
+                onNavigate={() => setOpen(false)}
+              />
+            ))}
+          </nav>
+        </div>
         <div className="sidebar-footer">
           <p className="muted small">Signed in as {auth.username}</p>
+          <Link
+            href="/portfolio"
+            className="btn btn-ghost"
+            onClick={() => setOpen(false)}
+          >
+            Book portfolio
+          </Link>
           <button type="button" className="btn btn-ghost" onClick={auth.logout}>
             Sign out
           </button>

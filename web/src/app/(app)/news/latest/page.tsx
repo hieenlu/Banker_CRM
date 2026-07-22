@@ -76,6 +76,50 @@ export default function LatestNewsPage() {
       description="Last 14 days, chronological. Filter by region, topic, or search."
     >
       <Panel>
+        <div className="pill-row" style={{ marginBottom: "0.75rem" }}>
+          {[
+            { v: "", label: "All regions" },
+            { v: "global", label: "Global" },
+            { v: "vietnam", label: "Vietnam" },
+          ].map((r) => (
+            <button
+              key={r.v || "all"}
+              type="button"
+              className={`pill ${region === r.v ? "active" : ""}`}
+              onClick={() => {
+                setPage(1);
+                setRegion(r.v);
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <div className="pill-row" style={{ marginBottom: "0.75rem" }}>
+          <button
+            type="button"
+            className={`pill ${category === "" ? "active" : ""}`}
+            onClick={() => {
+              setPage(1);
+              setCategory("");
+            }}
+          >
+            All topics
+          </button>
+          {NEWS_CATEGORIES.slice(0, 8).map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={`pill ${category === c ? "active" : ""}`}
+              onClick={() => {
+                setPage(1);
+                setCategory(c);
+              }}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
         <form className="toolbar" onSubmit={onSearch}>
           <input
             className="search-input"
@@ -84,31 +128,6 @@ export default function LatestNewsPage() {
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <select
-            value={region}
-            onChange={(e) => {
-              setPage(1);
-              setRegion(e.target.value);
-            }}
-          >
-            <option value="">All regions</option>
-            <option value="global">Global</option>
-            <option value="vietnam">Vietnam</option>
-          </select>
-          <select
-            value={category}
-            onChange={(e) => {
-              setPage(1);
-              setCategory(e.target.value);
-            }}
-          >
-            <option value="">All topics</option>
-            {NEWS_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
           <button type="submit" className="btn btn-secondary">
             Apply
           </button>
