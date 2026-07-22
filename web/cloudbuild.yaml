@@ -1,0 +1,18 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - $_IMAGE
+      - --build-arg
+      - NEXT_PUBLIC_API_URL=$_API_URL
+      - --build-arg
+      - CRM_API_ORIGIN=$_API_URL
+      - .
+images:
+  - $_IMAGE
+substitutions:
+  _IMAGE: banker-crm-web
+  _API_URL: http://127.0.0.1:8000
+options:
+  logging: CLOUD_LOGGING_ONLY

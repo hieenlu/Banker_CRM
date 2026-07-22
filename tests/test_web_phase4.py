@@ -54,3 +54,11 @@ def test_api_client_covers_phase2_and_3():
         "export.zip",
     ):
         assert needle in api, needle
+
+
+def test_gcp_deploy_assets_exist():
+    assert (ROOT / "docs" / "DEPLOY_GCP.md").is_file()
+    assert (ROOT / "scripts" / "deploy_cloudrun.sh").is_file()
+    assert (ROOT / "Dockerfile.api").is_file()
+    assert (WEB / "Dockerfile").is_file()
+    assert (ROOT / "cloudbuild.api.yaml").is_file()

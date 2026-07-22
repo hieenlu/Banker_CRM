@@ -50,6 +50,19 @@ cd web && npm install && npm run dev
 
 Open http://127.0.0.1:3000 — see `docs/PHASE4_WEB.md`.
 
+## Deploy (Google Cloud Run — iPad)
+
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+export CRM_API_PASSWORD='strong-password'
+export CRM_DB_URL='postgresql://…'   # recommended
+./scripts/deploy_cloudrun.sh
+```
+
+Open the printed `https://banker-crm-web-….run.app` URL in iPad Safari.  
+Full guide: `docs/DEPLOY_GCP.md`.
+
 ## Telegram configuration (required to send notifications)
 
 Set environment variables:

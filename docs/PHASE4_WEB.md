@@ -67,5 +67,8 @@ Open http://127.0.0.1:3000 — sign in with `CRM_API_USER` / `CRM_API_PASSWORD`.
 - [x] Responsive layout for desktop and tablet widths
 - [ ] Live smoke against hosted API + R2/S3 (ops)
 
+## Deploy on Google Cloud (iPad from anywhere)
+See `docs/DEPLOY_GCP.md` and `./scripts/deploy_cloudrun.sh`.
+
 ## Next (Phase 5)
 Background jobs for RSS / rank / AI / prune without opening the UI.

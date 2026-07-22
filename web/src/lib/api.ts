@@ -14,9 +14,15 @@ import type {
   TokenResponse,
 } from "./types";
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-  "http://127.0.0.1:8000";
+function resolveApiUrl(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (raw === "" || raw === "/backend") return "/backend";
+  if (raw) return raw.replace(/\/$/, "");
+  // Local default; Cloud Run images set NEXT_PUBLIC_API_URL at build time.
+  return "http://127.0.0.1:8000";
+}
+
+const API_URL = resolveApiUrl();
 
 export class ApiError extends Error {
   status: number;
