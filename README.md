@@ -8,7 +8,6 @@ Lightweight personal CRM for a financial banker:
 - **Phase 2:** FastAPI over the same DB (`docs/PHASE2_API.md`)
 - **Phase 3:** Cloudflare R2 / AWS S3 file storage (`docs/PHASE3_FILES.md`)
 - **Phase 4:** Next.js web desk (`docs/PHASE4_WEB.md`)
-- **Phase 3:** Cloudflare R2 / AWS S3 file storage (`docs/PHASE3_FILES.md`)
 
 ## Setup
 
