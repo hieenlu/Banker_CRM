@@ -63,6 +63,34 @@ rm -f gcp-github-sa-key.json
 
 Wait for the green check, open the Cloud Run web URL on iPad, confirm sidebar **Build YYYY-MM-DD-xxxxxxx**.
 
+### Troubleshooting: “Configure project” failed
+
+If Actions fails with `SERVICE_DISABLED` (Cloud Resource Manager API) or
+`Permission denied to enable service` for Artifact Registry / Cloud Build / Cloud Run,
+the deploy SA cannot turn APIs on. **Fix once on your Mac as project Owner** (keep existing GitHub secrets; no new key):
+
+```bash
+PROJECT=$(gcloud config get-value project)
+# or: PROJECT=YOUR_PROJECT_ID
+
+gcloud services enable \
+  cloudresourcemanager.googleapis.com \
+  serviceusage.googleapis.com \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  cloudbuild.googleapis.com
+
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:github-cloudrun-deploy@${PROJECT}.iam.gserviceaccount.com" \
+  --role="roles/serviceusage.serviceUsageAdmin"
+```
+
+Or re-run `./scripts/setup_gcp_github_deploy.sh` (updated script enables those APIs and grants Service Usage Admin). Skip creating a new key if `GCP_SA_KEY` is already set — Ctrl+C after the IAM bindings if you prefer.
+
+Then GitHub → **Actions → Deploy Cloud Run → Run workflow**.
+
+Node 20 deprecation warnings on `actions/checkout` / `google-github-actions/*` are cleared by using checkout@v5 and auth/setup-gcloud@v3 (this branch).
+
 ### Alternative: Cloud Build GitHub trigger (GCP Console)
 
 1. [Cloud Build → Triggers](https://console.cloud.google.com/cloud-build/triggers) → Connect repository  

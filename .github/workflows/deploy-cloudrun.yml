@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Check required secrets
         env:
@@ -49,21 +49,45 @@ jobs:
           fi
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
+        uses: google-github-actions/setup-gcloud@v3
 
       - name: Configure project
         run: |
           gcloud config set project "${{ secrets.GCP_PROJECT_ID }}"
-          gcloud services enable \
-            run.googleapis.com \
-            artifactregistry.googleapis.com \
-            cloudbuild.googleapis.com \
-            --quiet
+          # Prefer Owner-enabled APIs (setup_gcp_github_deploy.sh). Enable here if the SA
+          # has roles/serviceusage.serviceUsageAdmin; otherwise verify already enabled.
+          NEEDED=(
+            cloudresourcemanager.googleapis.com
+            serviceusage.googleapis.com
+            run.googleapis.com
+            artifactregistry.googleapis.com
+            cloudbuild.googleapis.com
+          )
+          if ! gcloud services enable "${NEEDED[@]}" --quiet; then
+            echo "::warning::gcloud services enable failed (common if Cloud Resource Manager API is off or SA lacks Service Usage Admin)."
+            echo "Checking whether required APIs are already enabled…"
+            missing=0
+            for svc in "${NEEDED[@]}"; do
+              if ! gcloud services list --enabled --filter="config.name:${svc}" --format='value(config.name)' | grep -qx "${svc}"; then
+                echo "Missing or unverifiable: ${svc}"
+                missing=1
+              fi
+            done
+            if [ "$missing" -ne 0 ]; then
+              echo "::error::Required GCP APIs are not enabled. On your Mac as project Owner (no new SA key needed):"
+              echo "  PROJECT=\$(gcloud config get-value project)"
+              echo "  gcloud services enable cloudresourcemanager.googleapis.com serviceusage.googleapis.com run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com"
+              echo "  gcloud projects add-iam-policy-binding \"\$PROJECT\" --member=\"serviceAccount:github-cloudrun-deploy@\${PROJECT}.iam.gserviceaccount.com\" --role=roles/serviceusage.serviceUsageAdmin"
+              echo "Then re-run this workflow. See docs/DEPLOY_GCP.md § Troubleshooting."
+              exit 1
+            fi
+            echo "Required APIs are already enabled; continuing."
+          fi
           if ! gcloud artifacts repositories describe "$REPO" --location="$REGION" >/dev/null 2>&1; then
             gcloud artifacts repositories create "$REPO" \
               --repository-format=docker \
