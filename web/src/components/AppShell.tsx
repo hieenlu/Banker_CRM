@@ -7,10 +7,14 @@ import { useAuth, useRequireAuth } from "./AuthProvider";
 
 const NAV = [
   { href: "/clients", label: "Clients" },
+  { href: "/portfolio", label: "Portfolio" },
   { href: "/reminders", label: "Reminders" },
   { href: "/news", label: "Market News" },
   { href: "/settings", label: "Settings" },
 ] as const;
+
+/** Bump this when shipping iPad-visible fixes so Safari cache is obvious. */
+export const WEB_BUILD_ID = "2026-07-23c-vnd-pnl";
 
 function NavLink({
   href,
@@ -78,13 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
         <div className="sidebar-footer">
           <p className="muted small">Signed in as {auth.username}</p>
-          <Link
-            href="/portfolio"
-            className="btn btn-ghost"
-            onClick={() => setOpen(false)}
-          >
-            Book portfolio
-          </Link>
+          <p className="muted small">Build {WEB_BUILD_ID}</p>
           <button type="button" className="btn btn-ghost" onClick={auth.logout}>
             Sign out
           </button>
@@ -111,6 +109,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             Menu
           </button>
           <span className="topbar-brand brand-mark">Banker CRM</span>
+          <span className="muted small hide-sm">Build {WEB_BUILD_ID}</span>
           <UserChip />
         </header>
         <main className="content">{children}</main>

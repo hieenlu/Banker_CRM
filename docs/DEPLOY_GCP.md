@@ -63,7 +63,18 @@ At the end it prints:
 iPad Safari → open:   https://banker-crm-web-xxxxx-XX.a.run.app
 ```
 
+At the end it prints:
+
+```text
+iPad Safari → open:   https://banker-crm-web-xxxxx-XX.a.run.app
+```
+
 Open that URL on the iPad → sign in with `CRM_API_USER` / `CRM_API_PASSWORD`.
+
+**Important:** every time you pull new UI/API fixes, run `./scripts/deploy_cloudrun.sh` again.
+Cloud Run does **not** auto-update from GitHub. On iPad Safari, also hard-refresh
+(hold reload → Request Desktop Website off/on, or clear website data) and confirm
+the sidebar shows `Build 2026-07-23c-vnd-pnl` (or newer).
 
 ## Optional: durable file storage
 
