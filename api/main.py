@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import get_settings
 from api.routers import (
     auth_router,
     clients_router,
+    files_router,
     health_router,
     incomes_router,
     investments_router,
     news_router,
     newspaper_router,
+    portfolio_view_router,
     reminders_router,
 )
 
@@ -24,7 +26,7 @@ def create_app() -> FastAPI:
         title=settings.title,
         version=settings.version,
         description=(
-            "Phase 2 HTTP API over Banker CRM + intel news models. "
+            "Banker CRM + intel news API with S3-compatible file storage. "
             "Uses the same CRM_DB_URL as Streamlit (SQLite locally, Postgres in prod)."
         ),
     )
@@ -42,8 +44,20 @@ def create_app() -> FastAPI:
     application.include_router(investments_router)
     application.include_router(incomes_router)
     application.include_router(reminders_router)
+    application.include_router(portfolio_view_router)
     application.include_router(news_router)
     application.include_router(newspaper_router)
+    application.include_router(files_router)
+
+    @application.middleware("http")
+    async def prevent_private_file_caching(request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if path.startswith("/files/") or "/attachments" in path or path.endswith(
+            "/export.zip"
+        ):
+            response.headers["Cache-Control"] = "private, no-store"
+        return response
 
     @application.get("/", include_in_schema=False)
     def root() -> dict[str, str]:

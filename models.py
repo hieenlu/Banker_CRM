@@ -2,7 +2,21 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text
+from sqlalchemy import (
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    BigInteger,
+    CheckConstraint,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -37,6 +51,9 @@ class Client(Base):
         back_populates="client", cascade="all, delete-orphan", lazy="selectin"
     )
     incomes: Mapped[list["Income"]] = relationship(
+        back_populates="client", cascade="all, delete-orphan", lazy="selectin"
+    )
+    attachments: Mapped[list["StoredFile"]] = relationship(
         back_populates="client", cascade="all, delete-orphan", lazy="selectin"
     )
 
@@ -118,4 +135,46 @@ class NewsCache(Base):
 
     fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
     results_json: Mapped[str] = mapped_column(Text, nullable=False)  # JSON string
+
+
+class StoredFile(Base):
+    """Metadata for an object stored locally, in Cloudflare R2, or in AWS S3."""
+
+    __tablename__ = "stored_files"
+    __table_args__ = (
+        UniqueConstraint(
+            "backend", "bucket", "object_key", name="uq_stored_files_object_identity"
+        ),
+        UniqueConstraint("kind", "period_yyyymm", name="uq_stored_files_kind_period"),
+        Index("ix_stored_files_client_created", "client_id", "created_at"),
+        CheckConstraint("size_bytes >= 0", name="ck_stored_files_size_nonnegative"),
+        CheckConstraint(
+            "status IN ('pending', 'ready', 'deleting')",
+            name="ck_stored_files_status",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    kind: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    backend: Mapped[str] = mapped_column(String(20), nullable=False)
+    bucket: Mapped[str] = mapped_column(String(200), nullable=False)
+    object_key: Mapped[str] = mapped_column(String(700), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="ready", index=True)
+    content_type: Mapped[str] = mapped_column(String(200), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
+    client_id: Mapped[int | None] = mapped_column(
+        ForeignKey("clients.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    label: Mapped[str | None] = mapped_column(String(250), nullable=True)
+
+    period_yyyymm: Mapped[str | None] = mapped_column(String(6), nullable=True, index=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    client: Mapped["Client"] = relationship(back_populates="attachments")
 

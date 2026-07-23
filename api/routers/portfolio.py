@@ -20,11 +20,16 @@ from api.schemas.portfolio import (
     ReminderOut,
     ReminderUpdate,
 )
+from api.schemas.portfolio_view import PortfolioViewOut, PriceRefreshOut
+from api.services.portfolio_view import build_portfolio_view, price_map_from_investments
+from api.services.pricing import refresh_investment_prices
+from database import load_app_settings
 from models import Client, Income, Investment, Reminder
 
 investments_router = APIRouter(prefix="/investments", tags=["investments"])
 incomes_router = APIRouter(prefix="/incomes", tags=["incomes"])
 reminders_router = APIRouter(prefix="/reminders", tags=["reminders"])
+portfolio_view_router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 
 
 def _require_client(session, client_id: int) -> Client:
@@ -32,6 +37,14 @@ def _require_client(session, client_id: int) -> Client:
     if not row:
         raise HTTPException(status_code=404, detail="Client not found")
     return row
+
+
+def _usd_vnd_rate() -> float:
+    settings = load_app_settings()
+    try:
+        return float(settings.get("usd_vnd_rate") or 25500.0)
+    except Exception:
+        return 25500.0
 
 
 @investments_router.get("", response_model=Page[InvestmentOut])
@@ -64,6 +77,68 @@ def list_investments(
         total=total,
         pages=pages,
     )
+
+
+@investments_router.post("/refresh-prices", response_model=PriceRefreshOut)
+def refresh_prices(
+    session: DbSession,
+    _user: CurrentUser,
+    client_id: int | None = None,
+    is_done: bool | None = Query(False),
+) -> PriceRefreshOut:
+    """Fetch live prices (vnstock / yfinance / …) and store on open investments."""
+    stmt = select(Investment)
+    if client_id is not None:
+        stmt = stmt.where(Investment.client_id == client_id)
+    if is_done is not None:
+        stmt = stmt.where(Investment.is_done.is_(is_done))
+    rows = list(session.execute(stmt).scalars().all())
+    result = refresh_investment_prices(rows)
+    session.flush()
+    return PriceRefreshOut(**result)
+
+
+@portfolio_view_router.get("/view", response_model=PortfolioViewOut)
+def portfolio_view(
+    session: DbSession,
+    _user: CurrentUser,
+    client_id: int | None = None,
+    is_done: bool | None = Query(None),
+    display_currency: str = Query("VND", pattern="^(VND|USD)$"),
+    live: bool = False,
+) -> PortfolioViewOut:
+    """
+    Streamlit-parity portfolio: grouped tables + PnL using utils formulas.
+    Set live=true to fetch market prices before valuing (slower).
+    Omit is_done to include all; default callers pass false for open only.
+    """
+    stmt = select(Investment)
+    if client_id is not None:
+        _require_client(session, client_id)
+        stmt = stmt.where(Investment.client_id == client_id)
+    if is_done is not None:
+        stmt = stmt.where(Investment.is_done.is_(is_done))
+    rows = list(session.execute(stmt.order_by(Investment.id.asc())).scalars().all())
+
+    if live:
+        refresh_investment_prices(rows)
+        session.flush()
+
+    price_map = price_map_from_investments(rows)
+    client_ids = {r.client_id for r in rows}
+    names: dict[int, str] = {}
+    if client_ids:
+        for c in session.execute(select(Client).where(Client.id.in_(client_ids))).scalars():
+            names[c.id] = c.name
+
+    view = build_portfolio_view(
+        rows,
+        price_map=price_map,
+        usd_vnd_rate=_usd_vnd_rate(),
+        display_currency=display_currency,
+        client_names=names,
+    )
+    return PortfolioViewOut(**view)
 
 
 @investments_router.post("", response_model=InvestmentOut, status_code=status.HTTP_201_CREATED)

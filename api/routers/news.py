@@ -16,9 +16,11 @@ from api.schemas.news import (
     BookmarkOut,
     NewspaperOut,
 )
+from api.schemas.portfolio_view import NewsRefreshOut
 from intel_terminal.db.models import Article, ArticleBookmark, DailyNewspaper
 from intel_terminal.db.repository import get_newspaper_for_date
 from intel_terminal.pipeline.analyze import top_articles
+from intel_terminal.pipeline.ingest import run_ingest_pipeline
 
 news_router = APIRouter(prefix="/news", tags=["news"])
 newspaper_router = APIRouter(prefix="/newspaper", tags=["newspaper"])
@@ -31,6 +33,29 @@ def _bookmarked_ids(session, article_ids: list[int]) -> set[int]:
         select(ArticleBookmark.article_id).where(ArticleBookmark.article_id.in_(article_ids))
     ).scalars()
     return set(rows)
+
+
+@news_router.post("/refresh", response_model=NewsRefreshOut)
+def refresh_news(
+    session: DbSession,
+    _user: CurrentUser,
+    region: str | None = Query(None, pattern="^(vietnam|global|crypto)$"),
+) -> NewsRefreshOut:
+    """Run the intel ingest pipeline (same as Streamlit Refresh News)."""
+    result = run_ingest_pipeline(
+        session,
+        region=region,
+        fetch_bodies=False,
+        classify_after=True,
+    )
+    return NewsRefreshOut(
+        status=result.status,
+        fetched=int(result.articles_fetched or 0),
+        new_count=int(result.articles_new or 0),
+        deduped=int(result.articles_deduped or 0),
+        classified=int(result.articles_classified or 0),
+        errors=list(result.errors or []),
+    )
 
 
 @news_router.get("/articles", response_model=Page[ArticleOut])

@@ -43,6 +43,7 @@ from models import Base  # noqa: E402
 # Parent → child order (FK-safe). Intel models share Base.
 TABLE_ORDER: tuple[str, ...] = (
     "clients",
+    "stored_files",
     "investments",
     "incomes",
     "reminders",

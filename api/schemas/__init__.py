@@ -3,6 +3,7 @@
 from api.schemas.auth import LoginRequest, MeResponse, TokenResponse
 from api.schemas.clients import ClientCreate, ClientOut, ClientUpdate
 from api.schemas.common import HealthResponse, Message, Page
+from api.schemas.files import StoredFileOut, TechcombankSyncResult
 from api.schemas.news import (
     ArticleDetailOut,
     ArticleOut,
@@ -32,6 +33,8 @@ __all__ = [
     "HealthResponse",
     "Message",
     "Page",
+    "StoredFileOut",
+    "TechcombankSyncResult",
     "ArticleDetailOut",
     "ArticleOut",
     "BookmarkCreate",
