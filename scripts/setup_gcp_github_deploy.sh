@@ -18,7 +18,11 @@ SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "==> Project ${PROJECT_ID}"
 gcloud config set project "${PROJECT_ID}"
+
+# Owner must enable these once (GitHub SA cannot enable APIs until Service Usage Admin is granted).
 gcloud services enable \
+  cloudresourcemanager.googleapis.com \
+  serviceusage.googleapis.com \
   run.googleapis.com \
   artifactregistry.googleapis.com \
   cloudbuild.googleapis.com \
@@ -35,7 +39,8 @@ for ROLE in \
   roles/artifactregistry.admin \
   roles/cloudbuild.builds.editor \
   roles/iam.serviceAccountUser \
-  roles/storage.admin
+  roles/storage.admin \
+  roles/serviceusage.serviceUsageAdmin
 do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${SA_EMAIL}" \
