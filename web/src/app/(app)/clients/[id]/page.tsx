@@ -150,7 +150,10 @@ export default function ClientDetailPage() {
         is_done: false,
       });
       setStatus(
-        `Prices: ${result.resolved}/${result.requested} resolved, ${result.updated} updated`,
+        `Prices: ${result.resolved}/${result.requested} resolved, ${result.updated} updated` +
+          (result.missing?.length
+            ? ` · missing: ${result.missing.slice(0, 8).join(", ")}`
+            : ""),
       );
       await load();
     } catch (err) {

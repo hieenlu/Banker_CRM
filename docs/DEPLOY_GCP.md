@@ -20,7 +20,7 @@ your laptop again. Updates ship when you:
 1. **Merge / push to `main`**, or  
 2. On phone/iPad GitHub → **Actions → Deploy Cloud Run → Run workflow**
 
-The iPad sidebar shows a **Build …** stamp (date + git SHA) so you can confirm the new version.
+The iPad sidebar shows a **Build …** stamp (UTC date+time + git SHA) so you can confirm the new version.
 
 ### One-time setup (Mac, ~10 minutes)
 
@@ -61,7 +61,7 @@ rm -f gcp-github-sa-key.json
 - **Automatic:** merge the Phase 4 PR (or any later push) into `main`  
 - **Manual from phone:** GitHub app → **Actions** → **Deploy Cloud Run** → **Run workflow**
 
-Wait for the green check, open the Cloud Run web URL on iPad, confirm sidebar **Build YYYY-MM-DD-xxxxxxx**.
+Wait for the green check, open the Cloud Run web URL on iPad, confirm sidebar **Build YYYY-MM-DDTHHMMZ-xxxxxxx**.
 
 ### Troubleshooting: “Configure project” failed
 

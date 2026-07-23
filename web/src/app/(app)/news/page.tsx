@@ -78,18 +78,25 @@ export default function NewsDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const [globalNews, vnNews, xNews, today] = await Promise.all([
+      // Match Streamlit Markets: global+crypto, latest first, same age window as Latest.
+      const [globalNews, cryptoNews, vnNews, xNews, today] = await Promise.all([
         api.listArticles({
           region: "global",
-          sort: "relevance",
-          max_age_hours: 72,
+          sort: "latest",
+          max_age_hours: 336,
+          page_size: 80,
+        }),
+        api.listArticles({
+          region: "crypto",
+          sort: "latest",
+          max_age_hours: 336,
           page_size: 40,
         }),
         api.listArticles({
           region: "vietnam",
-          sort: "relevance",
-          max_age_hours: 168,
-          page_size: 30,
+          sort: "latest",
+          max_age_hours: 336,
+          page_size: 40,
         }),
         Promise.all([
           api.listArticles({ q: "Kobeissi", sort: "latest", page_size: 15 }),
@@ -101,7 +108,16 @@ export default function NewsDashboardPage() {
         }),
         api.newspaperToday().catch(() => null),
       ]);
-      setMarkets(globalNews.items);
+      const marketMap = new Map<number, Article>();
+      for (const row of [...globalNews.items, ...cryptoNews.items]) {
+        marketMap.set(row.id, row);
+      }
+      const marketItems = Array.from(marketMap.values()).sort((a, b) => {
+        const ta = a.published_at || a.fetched_at || "";
+        const tb = b.published_at || b.fetched_at || "";
+        return tb.localeCompare(ta);
+      });
+      setMarkets(marketItems);
       setVietnam(vnNews.items);
       setXItems(xNews.items);
       setPaper(today);

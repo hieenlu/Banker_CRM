@@ -15,7 +15,8 @@ def calc_tickers_for_pricing(
     crypto_tickers: set[str] = set()
     for inv in investments:
         asset_type = (inv.asset_type or "").strip().lower()
-        if asset_type in {"stock", "vn_stock", "us_stock", "commodity", "bond", "crypto"}:
+        # Bonds keep face/current values in CRM — do not send tickers to live quote APIs.
+        if asset_type in {"stock", "vn_stock", "us_stock", "commodity", "crypto"}:
             t = (inv.ticker_identifier or "").strip()
             if t:
                 tickers.add(t)

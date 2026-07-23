@@ -148,7 +148,7 @@ jobs:
       - name: Build & push Web image
         run: |
           IMAGE="${REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${REPO}/web:latest"
-          BUILD_ID="$(date -u +%Y-%m-%d)-${GITHUB_SHA::7}"
+          BUILD_ID="$(date -u +%Y-%m-%dT%H%MZ)-${GITHUB_SHA::7}"
           gcloud builds submit web \
             --config=web/cloudbuild.yaml \
             --substitutions="_IMAGE=${IMAGE},_API_URL=${API_URL},_WEB_BUILD_ID=${BUILD_ID}"
