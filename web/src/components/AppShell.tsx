@@ -13,8 +13,9 @@ const NAV = [
   { href: "/settings", label: "Settings" },
 ] as const;
 
-/** Bump this when shipping iPad-visible fixes so Safari cache is obvious. */
-export const WEB_BUILD_ID = "2026-07-23c-vnd-pnl";
+/** Shown in sidebar — CI sets NEXT_PUBLIC_WEB_BUILD_ID at image build time. */
+export const WEB_BUILD_ID =
+  process.env.NEXT_PUBLIC_WEB_BUILD_ID || "2026-07-23c-vnd-pnl";
 
 function NavLink({
   href,

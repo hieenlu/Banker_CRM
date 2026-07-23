@@ -106,7 +106,7 @@ echo "==> Build & push Web image"
 gcloud builds submit "${ROOT}/web" \
   --project="${PROJECT_ID}" \
   --config="${ROOT}/web/cloudbuild.yaml" \
-  --substitutions="_IMAGE=${WEB_IMAGE},_API_URL=${API_URL}"
+  --substitutions="_IMAGE=${WEB_IMAGE},_API_URL=${API_URL},_WEB_BUILD_ID=$(date -u +%Y-%m-%d)-local"
 
 echo "==> Deploy Web"
 gcloud run deploy "${WEB_SERVICE}" \
