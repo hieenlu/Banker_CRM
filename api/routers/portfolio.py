@@ -93,7 +93,18 @@ def refresh_prices(
     if is_done is not None:
         stmt = stmt.where(Investment.is_done.is_(is_done))
     rows = list(session.execute(stmt).scalars().all())
-    result = refresh_investment_prices(rows)
+    try:
+        result = refresh_investment_prices(rows)
+    except ModuleNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Price refresh unavailable on server (missing module: {exc.name}). Redeploy API image.",
+        ) from exc
+    except Exception as exc:  # pragma: no cover - passthrough with clearer client message
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Price refresh failed: {exc}",
+        ) from exc
     session.flush()
     return PriceRefreshOut(**result)
 

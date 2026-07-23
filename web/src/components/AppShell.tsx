@@ -15,7 +15,7 @@ const NAV = [
 
 /** Shown in sidebar — CI sets NEXT_PUBLIC_WEB_BUILD_ID at image build time. */
 export const WEB_BUILD_ID =
-  process.env.NEXT_PUBLIC_WEB_BUILD_ID || "2026-07-23c-vnd-pnl";
+  process.env.NEXT_PUBLIC_WEB_BUILD_ID || "dev-local";
 
 function NavLink({
   href,

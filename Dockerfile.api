@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY api ./api
 COPY storage ./storage
-COPY database.py models.py utils.py scraper.py ./
+COPY database.py models.py utils.py scraper.py fetch_prices.py ./
 COPY intel_terminal ./intel_terminal
 COPY scripts ./scripts
 
