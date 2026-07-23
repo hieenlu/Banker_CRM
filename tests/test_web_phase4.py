@@ -36,6 +36,7 @@ def test_web_routes_present():
         "src/app/(app)/news/archive/page.tsx",
         "src/lib/api.ts",
         "src/components/AttachmentPanel.tsx",
+        "src/components/PortfolioTables.tsx",
     ]
     missing = [r for r in routes if not (WEB / r).is_file()]
     assert not missing, missing
@@ -62,3 +63,10 @@ def test_gcp_deploy_assets_exist():
     assert (ROOT / "Dockerfile.api").is_file()
     assert (WEB / "Dockerfile").is_file()
     assert (ROOT / "cloudbuild.api.yaml").is_file()
+
+
+def test_api_client_covers_refresh_endpoints():
+    api = (WEB / "src" / "lib" / "api.ts").read_text(encoding="utf-8")
+    assert "/portfolio/view" in api
+    assert "/investments/refresh-prices" in api
+    assert "/news/refresh" in api

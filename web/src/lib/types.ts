@@ -158,3 +158,47 @@ export const NEWS_CATEGORIES = [
   "Geopolitics",
   "Uncategorized",
 ] as const;
+
+export type PortfolioTotals = {
+  principal: number;
+  current_value: number;
+  pnl: number;
+  pnl_pct: number | null;
+};
+
+export type PortfolioSubgroup = {
+  name: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  unrealized_pnl: number;
+  native_currency: string;
+};
+
+export type PortfolioGroup = {
+  name: string;
+  subgroups: PortfolioSubgroup[];
+};
+
+export type PortfolioView = {
+  display_currency: string;
+  usd_vnd_rate: number;
+  totals: PortfolioTotals;
+  groups: PortfolioGroup[];
+};
+
+export type PriceRefreshResult = {
+  requested: number;
+  resolved: number;
+  updated: number;
+  prices: Record<string, number>;
+  missing: string[];
+};
+
+export type NewsRefreshResult = {
+  status: string;
+  fetched: number;
+  new_count: number;
+  deduped: number;
+  classified: number;
+  errors: string[];
+};

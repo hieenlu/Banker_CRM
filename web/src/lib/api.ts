@@ -7,8 +7,11 @@ import type {
   Income,
   Investment,
   MeResponse,
+  NewsRefreshResult,
   Newspaper,
   Page,
+  PortfolioView,
+  PriceRefreshResult,
   Reminder,
   StoredFile,
   TokenResponse,
@@ -143,6 +146,41 @@ export const api = {
     page_size?: number;
   } = {}) {
     return apiFetch<Page<Investment>>("/investments", { query: params });
+  },
+  portfolioView(params: {
+    client_id?: number;
+    is_done?: boolean | null;
+    display_currency?: string;
+    live?: boolean;
+  } = {}) {
+    const query: Record<string, string | number | boolean | null | undefined> = {
+      client_id: params.client_id,
+      display_currency: params.display_currency || "VND",
+      live: params.live ? true : undefined,
+    };
+    if (params.is_done !== null && params.is_done !== undefined) {
+      query.is_done = params.is_done;
+    } else if (params.is_done === null) {
+      // omit filter — include completed
+    } else {
+      query.is_done = false;
+    }
+    return apiFetch<PortfolioView>("/portfolio/view", { query });
+  },
+  refreshPrices(params: { client_id?: number; is_done?: boolean } = {}) {
+    return apiFetch<PriceRefreshResult>("/investments/refresh-prices", {
+      method: "POST",
+      query: {
+        client_id: params.client_id,
+        is_done: params.is_done ?? false,
+      },
+    });
+  },
+  refreshNews(params: { region?: string } = {}) {
+    return apiFetch<NewsRefreshResult>("/news/refresh", {
+      method: "POST",
+      query: params,
+    });
   },
   listIncomes(params: {
     client_id?: number;

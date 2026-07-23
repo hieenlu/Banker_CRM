@@ -24,6 +24,7 @@ export default function ArchiveNewsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -54,7 +55,7 @@ export default function ArchiveNewsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, tick]);
 
   function onSearch(e: FormEvent) {
     e.preventDefault();
@@ -77,6 +78,7 @@ export default function ArchiveNewsPage() {
     <NewsTabs
       title="Archive"
       description="Stories older than 14 days from the intel corpus."
+      onRefreshed={() => setTick((t) => t + 1)}
     >
       <Panel>
         <form className="toolbar" onSubmit={onSearch}>

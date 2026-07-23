@@ -1,158 +1,142 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { explainError } from "@/components/AuthProvider";
+import { PortfolioTables } from "@/components/PortfolioTables";
 import {
-  EmptyState,
   ErrorBanner,
   LoadingBlock,
   PageHeader,
-  Pagination,
   Panel,
 } from "@/components/ui";
-import { formatDate, formatMoney, formatNumber, marketValue } from "@/lib/format";
-import type { Client, Investment } from "@/lib/types";
+import { formatMoney, formatPct, pnlClass } from "@/lib/format";
+import type { PortfolioView } from "@/lib/types";
 
 export default function PortfolioPage() {
-  const [page, setPage] = useState(1);
-  const [items, setItems] = useState<Investment[]>([]);
-  const [clients, setClients] = useState<Record<number, string>>({});
-  const [pages, setPages] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [view, setView] = useState<PortfolioView | null>(null);
   const [showDone, setShowDone] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [inv, clientPage] = await Promise.all([
-        api.listInvestments({
-          page,
-          page_size: 50,
-          is_done: showDone ? undefined : false,
-        }),
-        api.listClients({ page_size: 200 }),
-      ]);
-      setItems(inv.items);
-      setPages(inv.pages);
-      setTotal(inv.total);
-      const map: Record<number, string> = {};
-      for (const c of clientPage.items as Client[]) map[c.id] = c.name;
-      setClients(map);
+      const data = await api.portfolioView({
+        is_done: showDone ? null : false,
+        display_currency: "VND",
+      });
+      setView(data);
     } catch (err) {
       setError(explainError(err));
     } finally {
       setLoading(false);
     }
-  }, [page, showDone]);
+  }, [showDone]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const summary = useMemo(() => {
-    const open = items.filter((i) => !i.is_done);
-    const mv = open.reduce((s, i) => s + marketValue(i), 0);
-    const byType = open.reduce<Record<string, number>>((acc, i) => {
-      acc[i.asset_type] = (acc[i.asset_type] || 0) + marketValue(i);
-      return acc;
-    }, {});
-    return { mv, byType, openCount: open.length };
-  }, [items]);
+  async function onRefreshPrices() {
+    setBusy(true);
+    setStatus(null);
+    setError(null);
+    try {
+      const result = await api.refreshPrices({
+        is_done: showDone ? undefined : false,
+      });
+      setStatus(
+        `Prices: ${result.resolved}/${result.requested} resolved, ${result.updated} positions updated` +
+          (result.missing.length
+            ? ` · missing: ${result.missing.slice(0, 8).join(", ")}`
+            : ""),
+      );
+      await load();
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const totals = view?.totals;
 
   return (
     <>
       <PageHeader
         title="Portfolio"
-        description="Cross-client holdings with estimated market value from current or purchase price."
+        description="Holdings grouped like Streamlit (Cash, Bonds, VN/US stocks, …). Display currency VND."
         actions={
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => {
-              setPage(1);
-              setShowDone((v) => !v);
-            }}
-          >
-            {showDone ? "Hide completed" : "Include completed"}
-          </button>
+          <>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => void onRefreshPrices()}
+            >
+              {busy ? "Refreshing…" : "Refresh prices"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setShowDone((v) => !v)}
+            >
+              {showDone ? "Hide completed" : "Include completed"}
+            </button>
+          </>
         }
       />
 
-      <div className="metric-grid" style={{ marginBottom: "1rem" }}>
-        <div className="metric">
-          <div className="metric-label">Positions on page</div>
-          <div className="metric-value">{summary.openCount}</div>
-        </div>
-        <div className="metric">
-          <div className="metric-label">Est. value (page)</div>
-          <div className="metric-value">{formatMoney(summary.mv)}</div>
-        </div>
-        {Object.entries(summary.byType)
-          .slice(0, 2)
-          .map(([type, value]) => (
-            <div className="metric" key={type}>
-              <div className="metric-label">{type}</div>
-              <div className="metric-value">{formatMoney(value)}</div>
-            </div>
-          ))}
-      </div>
-
+      {status ? <p className="muted">{status}</p> : null}
       <ErrorBanner message={error} />
-      <Panel>
-        {loading ? <LoadingBlock /> : null}
-        {!loading && !items.length ? (
-          <EmptyState title="No investments" description="Add holdings from Streamlit or the API." />
-        ) : null}
-        {items.length ? (
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Client</th>
-                  <th>Asset</th>
-                  <th>Qty</th>
-                  <th>Price</th>
-                  <th>Value</th>
-                  <th>Maturity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((inv) => (
-                  <tr key={inv.id}>
-                    <td>
-                      <Link className="linkish" href={`/clients/${inv.client_id}`}>
-                        {clients[inv.client_id] || `#${inv.client_id}`}
-                      </Link>
-                    </td>
-                    <td>
-                      <strong>{inv.ticker_name || inv.asset_type}</strong>
-                      <div className="muted small">
-                        {inv.ticker_identifier || inv.asset_type}
-                        {inv.is_done ? " · done" : ""}
-                      </div>
-                    </td>
-                    <td>{formatNumber(inv.quantity)}</td>
-                    <td>
-                      {formatMoney(
-                        inv.current_price ?? inv.purchase_price,
-                        inv.currency,
-                      )}
-                    </td>
-                    <td>{formatMoney(marketValue(inv), inv.currency)}</td>
-                    <td>{formatDate(inv.maturity_date)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+      {totals ? (
+        <div className="metric-grid" style={{ marginBottom: "1rem" }}>
+          <div className="metric">
+            <div className="metric-label">Principal (VND)</div>
+            <div className="metric-value">
+              {formatMoney(totals.principal, "VND")}
+            </div>
           </div>
-        ) : null}
-        <Pagination page={page} pages={pages} total={total} onChange={setPage} />
-      </Panel>
+          <div className="metric">
+            <div className="metric-label">Current value</div>
+            <div className="metric-value">
+              {formatMoney(totals.current_value, "VND")}
+            </div>
+          </div>
+          <div className="metric">
+            <div className="metric-label">Unrealized P&L</div>
+            <div className={`metric-value ${pnlClass(totals.pnl)}`}>
+              {formatMoney(totals.pnl, "VND")}
+            </div>
+          </div>
+          <div className="metric">
+            <div className="metric-label">P&L %</div>
+            <div className={`metric-value ${pnlClass(totals.pnl)}`}>
+              {formatPct(totals.pnl_pct)}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {view ? (
+        <p className="muted small" style={{ marginBottom: "0.75rem" }}>
+          FX: 1 USD = {formatMoney(view.usd_vnd_rate, "VND").replace(" ₫", "")}{" "}
+          VND (from Settings / crm_settings.json)
+        </p>
+      ) : null}
+
+      {loading ? <LoadingBlock /> : null}
+      {!loading && view ? <PortfolioTables view={view} showClient /> : null}
+      {!loading && !view?.groups.length ? (
+        <Panel>
+          <p className="muted">No open investments yet.</p>
+        </Panel>
+      ) : null}
     </>
   );
 }

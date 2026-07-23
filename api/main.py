@@ -15,6 +15,7 @@ from api.routers import (
     investments_router,
     news_router,
     newspaper_router,
+    portfolio_view_router,
     reminders_router,
 )
 
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
     application.include_router(investments_router)
     application.include_router(incomes_router)
     application.include_router(reminders_router)
+    application.include_router(portfolio_view_router)
     application.include_router(news_router)
     application.include_router(newspaper_router)
     application.include_router(files_router)

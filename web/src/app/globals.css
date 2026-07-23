@@ -791,11 +791,20 @@ table.data tr.clickable {
 }
 
 .pnl-pos {
-  color: var(--crm-green);
+  color: #4ade80;
 }
 
 .pnl-neg {
-  color: var(--crm-red);
+  color: #f87171;
+}
+
+.group-title {
+  margin: 0.35rem 0 0.75rem;
+  font-size: 1.35rem;
+}
+
+.portfolio-group {
+  margin-bottom: 0.5rem;
 }
 
 .group-header {

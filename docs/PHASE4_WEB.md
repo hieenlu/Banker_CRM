@@ -43,13 +43,22 @@ Open http://127.0.0.1:3000 — sign in with `CRM_API_USER` / `CRM_API_PASSWORD`.
 |---|---|
 | `/login` | Username / password → JWT |
 | `/clients` | Search + create clients |
-| `/clients/[id]` | Profile, cashflow, holdings, reminders, **attachments** |
-| `/portfolio` | Cross-client holdings |
+| `/clients/[id]` | Profile, **VND** cashflow, holdings by asset type, attachments |
+| `/portfolio` | Grouped tables (Cash, Bond, VN/US stocks, …) + **Refresh prices** |
 | `/reminders` | Follow-ups |
-| `/news` | Dashboard (top / Vietnam / regime) |
+| `/news` | Dashboard (top / Vietnam / regime) + **Refresh News** |
 | `/news/latest` | 14-day feed with filters |
 | `/news/briefing` | Daily newspaper + Techcombank PDF sync/download |
 | `/news/archive` | Older-than-14-day stories |
+
+## Portfolio / prices
+- Display currency defaults to **VND** (US stocks & crypto stay USD native for price cells).
+- `POST /investments/refresh-prices` fetches live quotes (vnstock / yfinance / …) and stores `current_price`.
+- `GET /portfolio/view` returns Streamlit-parity grouped tables + PnL (`utils.investment_value_and_pnl`).
+- FX rate from `crm_settings.json` (`usd_vnd_rate`).
+
+## News refresh
+- `POST /news/refresh` runs `run_ingest_pipeline` (same as Streamlit **Refresh News**).
 
 ## iPad Safari notes
 - `viewport-fit=cover` + safe-area padding

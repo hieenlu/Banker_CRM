@@ -72,6 +72,7 @@ export default function NewsDashboardPage() {
   const [xPill, setXPill] = useState<(typeof X_PILLS)[number]>("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,7 +114,7 @@ export default function NewsDashboardPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, tick]);
 
   async function onToggle(article: Article) {
     try {
@@ -152,11 +153,7 @@ export default function NewsDashboardPage() {
     <NewsTabs
       title="AI Financial Intelligence Terminal"
       description="US / Korea / Taiwan · Vietnam · X analysts · briefings"
-      actions={
-        <button type="button" className="btn btn-primary" onClick={() => void load()}>
-          Refresh News
-        </button>
-      }
+      onRefreshed={() => setTick((t) => t + 1)}
     >
       <ErrorBanner message={error} />
 

@@ -1,24 +1,38 @@
 export function formatMoney(
   value: number | null | undefined,
-  currency = "USD",
+  currency = "VND",
 ): string {
-  if (value == null || Number.isNaN(value)) return "—";
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  const amount = Number(value);
+  const ccy = (currency || "VND").toUpperCase();
+  if (ccy === "VND") {
+    return `${new Intl.NumberFormat("vi-VN", {
+      maximumFractionDigits: 0,
+    }).format(Math.round(amount))} ₫`;
+  }
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
-      currency,
+      currency: ccy,
       maximumFractionDigits: 2,
-    }).format(value);
+    }).format(amount);
   } catch {
-    return `${value.toFixed(2)} ${currency}`;
+    return `${amount.toFixed(2)} ${ccy}`;
   }
 }
 
 export function formatNumber(value: number | null | undefined): string {
-  if (value == null || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(
-    value,
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(
+    Number(value),
   );
+}
+
+export function formatPct(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  const n = Number(value);
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(2)}%`;
 }
 
 export function formatDate(value: string | null | undefined): string {
@@ -51,6 +65,15 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+export function pnlClass(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(Number(value))) return "";
+  const n = Number(value);
+  if (n > 0) return "pnl-pos";
+  if (n < 0) return "pnl-neg";
+  return "";
+}
+
+/** Legacy helper — prefer /portfolio/view for Streamlit-accurate PnL. */
 export function marketValue(inv: {
   quantity: number;
   current_price: number | null;

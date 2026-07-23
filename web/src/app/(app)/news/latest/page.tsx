@@ -25,6 +25,7 @@ export default function LatestNewsPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,7 +52,7 @@ export default function LatestNewsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, tick]);
 
   function onSearch(e: FormEvent) {
     e.preventDefault();
@@ -74,6 +75,7 @@ export default function LatestNewsPage() {
     <NewsTabs
       title="Latest News"
       description="Last 14 days, chronological. Filter by region, topic, or search."
+      onRefreshed={() => setTick((t) => t + 1)}
     >
       <Panel>
         <div className="pill-row" style={{ marginBottom: "0.75rem" }}>
