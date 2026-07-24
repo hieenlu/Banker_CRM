@@ -10,7 +10,8 @@ import {
   ErrorBanner,
   LoadingBlock,
 } from "@/components/ui";
-import type { Article, Newspaper } from "@/lib/types";
+import { formatDateTime } from "@/lib/format";
+import type { Article, Newspaper, XFeedItem } from "@/lib/types";
 
 const MARKET_PILLS = [
   "All",
@@ -56,22 +57,50 @@ function matchesVnPill(article: Article, pill: string): boolean {
   return hay.includes(pill.toLowerCase());
 }
 
-function matchesXPill(article: Article, pill: string): boolean {
+function matchesXPill(item: XFeedItem, pill: string): boolean {
   if (pill === "All") return true;
-  const hay = `${article.title} ${article.source} ${article.url}`.toLowerCase();
-  return hay.includes(pill.toLowerCase());
+  const handle = (item.handle || item.source || "").replace(/^@/, "").toLowerCase();
+  return handle.includes(pill.toLowerCase());
+}
+
+function XFeedList({ items }: { items: XFeedItem[] }) {
+  return (
+    <ul className="article-list">
+      {items.map((item) => (
+        <li key={item.link} className="article-item">
+          <div>
+            <a
+              className="article-title"
+              href={item.link}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {item.headline}
+            </a>
+          </div>
+          <div className="article-meta">
+            <span className="tag">{item.handle ? `@${item.handle}` : item.source}</span>
+            <span>{item.date ? formatDateTime(item.date) : item.source}</span>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function NewsDashboardPage() {
   const [markets, setMarkets] = useState<Article[]>([]);
   const [vietnam, setVietnam] = useState<Article[]>([]);
-  const [xItems, setXItems] = useState<Article[]>([]);
+  const [xItems, setXItems] = useState<XFeedItem[]>([]);
+  const [xFetchedAt, setXFetchedAt] = useState<string | null>(null);
   const [paper, setPaper] = useState<Newspaper | null>(null);
   const [marketPill, setMarketPill] = useState<(typeof MARKET_PILLS)[number]>("All");
   const [vnPill, setVnPill] = useState<(typeof VN_PILLS)[number]>("All");
   const [xPill, setXPill] = useState<(typeof X_PILLS)[number]>("All");
   const [loading, setLoading] = useState(true);
+  const [xBusy, setXBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [xMsg, setXMsg] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
   const load = useCallback(async () => {
@@ -98,14 +127,7 @@ export default function NewsDashboardPage() {
           max_age_hours: 336,
           page_size: 40,
         }),
-        Promise.all([
-          api.listArticles({ q: "Kobeissi", sort: "latest", page_size: 15 }),
-          api.listArticles({ q: "citrini", sort: "latest", page_size: 15 }),
-        ]).then(([a, b]) => {
-          const map = new Map<number, Article>();
-          for (const row of [...a.items, ...b.items]) map.set(row.id, row);
-          return { items: Array.from(map.values()) };
-        }),
+        api.listXFeeds(),
         api.newspaperToday().catch(() => null),
       ]);
       const marketMap = new Map<number, Article>();
@@ -120,6 +142,7 @@ export default function NewsDashboardPage() {
       setMarkets(marketItems);
       setVietnam(vnNews.items);
       setXItems(xNews.items);
+      setXFetchedAt(xNews.fetched_at);
       setPaper(today);
     } catch (err) {
       setError(explainError(err));
@@ -139,9 +162,24 @@ export default function NewsDashboardPage() {
         rows.map((r) => (r.id === updated.id ? updated : r));
       setMarkets(patch);
       setVietnam(patch);
-      setXItems(patch);
     } catch (err) {
       setError(explainError(err));
+    }
+  }
+
+  async function onRefreshX() {
+    setXBusy(true);
+    setXMsg(null);
+    setError(null);
+    try {
+      const result = await api.refreshXFeeds({ limit_per_profile: 12 });
+      setXItems(result.items);
+      setXFetchedAt(result.fetched_at);
+      setXMsg(`Loaded ${result.count} X posts`);
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setXBusy(false);
     }
   }
 
@@ -172,6 +210,7 @@ export default function NewsDashboardPage() {
       onRefreshed={() => setTick((t) => t + 1)}
     >
       <ErrorBanner message={error} />
+      {xMsg ? <p className="muted">{xMsg}</p> : null}
 
       <div className="metric-grid" style={{ marginBottom: "1rem" }}>
         <div className="metric">
@@ -265,7 +304,10 @@ export default function NewsDashboardPage() {
               @citrini
             </a>
           </p>
-          <div className="pill-row" style={{ marginBottom: "0.75rem" }}>
+          <div
+            className="pill-row"
+            style={{ marginBottom: "0.75rem", alignItems: "center" }}
+          >
             {X_PILLS.map((p) => (
               <button
                 key={p}
@@ -276,13 +318,27 @@ export default function NewsDashboardPage() {
                 {p === "KobeissiLetter" ? "Kobeissi" : p === "citrini" ? "Citrini" : p}
               </button>
             ))}
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ minHeight: 32, padding: "0.2rem 0.65rem" }}
+              disabled={xBusy}
+              onClick={() => void onRefreshX()}
+            >
+              {xBusy ? "Refreshing…" : "Refresh X"}
+            </button>
           </div>
+          {xFetchedAt ? (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Updated {formatDateTime(xFetchedAt)}
+            </p>
+          ) : null}
           {filteredX.length ? (
-            <ArticleList items={filteredX} onToggleBookmark={onToggle} compact />
+            <XFeedList items={filteredX} />
           ) : !loading ? (
             <EmptyState
               title="No X posts cached"
-              description="Refresh X feeds from Streamlit Market News, then reload this page."
+              description="Click Refresh X to scrape @KobeissiLetter and @citrini."
             />
           ) : null}
         </section>

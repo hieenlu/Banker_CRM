@@ -20,12 +20,14 @@ from utils import keywords_hash
 NEWS_TIMEOUT_SECS = 20
 USER_AGENT = "BankerCRM/1.0 (local personal project; contact: none)"
 X_PROFILES_DEFAULT = ["KobeissiLetter", "citrini"]
-# Public Nitter mirrors — tried in order; first success wins.
+X_FEEDS_CACHE_KEY = "__x_analyst_feeds__:KobeissiLetter,citrini"
+# Public Nitter-style RSS mirrors — tried in order; first success wins.
 NITTER_RSS_HOSTS = (
     "https://nitter.net",
     "https://nitter.privacydev.net",
     "https://nitter.poast.org",
     "https://nitter.cz",
+    "https://xcancel.com",
 )
 
 
@@ -234,7 +236,7 @@ def scrape_yahoo_finance_news(keyword: str, limit: int = 10) -> list[dict[str, A
 
 
 def _nitter_link_to_x(link: str, handle: str) -> str:
-    """Rewrite Nitter post URLs to x.com so readers land on the public profile."""
+    """Rewrite Nitter / xcancel post URLs to x.com so readers land on the public profile."""
     raw = (link or "").strip()
     if not raw:
         return f"https://x.com/{handle}"
@@ -245,8 +247,17 @@ def _nitter_link_to_x(link: str, handle: str) -> str:
         rest = raw[len(marker) :]
         host, sep, path = rest.partition("/")
         host_l = host.lower()
-        if host_l == "nitter.net" or host_l.startswith("nitter."):
-            return f"https://x.com/{path}" if sep and path else f"https://x.com/{handle}"
+        if (
+            host_l == "nitter.net"
+            or host_l.startswith("nitter.")
+            or host_l.endswith("xcancel.com")
+            or host_l == "xcancel.com"
+        ):
+            clean = (path or "").strip("/")
+            # Drop mirror-only paths like "handle/rss" placeholders.
+            if not sep or not clean or clean.lower().endswith("/rss") or clean.lower() == "rss":
+                return f"https://x.com/{handle}"
+            return f"https://x.com/{path}"
         break
     return raw
 
@@ -325,42 +336,49 @@ def _clean_jina_post_body(raw: str) -> str:
         flags=re.IGNORECASE,
     )
     text = re.sub(r"(?:\s+\*\s+.*)$", "", text)
+    # Strip next-card author headers that bleed into the body ("Name @handle").
+    text = re.sub(r"\s+[A-Za-z][^@]{0,48}@\w+\s*$", "", text)
+    text = re.sub(r"\s+Pinned\b.*$", "", text, flags=re.IGNORECASE)
     return text.strip(" \t\r\n-•")
 
 
-def _scrape_x_profile_via_jina(handle: str, limit: int = 10) -> list[dict[str, Any]]:
-    """Fallback: read the public x.com profile through Jina's reader API."""
-    url = f"https://r.jina.ai/https://x.com/{handle}"
-    resp = requests.get(
-        url,
-        headers={
-            "User-Agent": USER_AGENT,
-            "X-Return-Format": "markdown",
-            "Accept": "text/plain",
-        },
-        timeout=max(NEWS_TIMEOUT_SECS, 30),
-    )
-    resp.raise_for_status()
-    text = resp.text or ""
+def _is_usable_x_headline(body: str, handle: str) -> bool:
+    text = (body or "").strip()
+    if not text or len(text) < 12:
+        return False
+    lowered = text.lower()
+    if lowered in {"show more", "quote", "quotes"}:
+        return False
+    if "not yet whitelisted" in lowered:
+        return False
+    # Reject author-only leftovers like "Citrini @citrini".
+    if re.fullmatch(rf"(?i).{{0,40}}@{re.escape(handle)}", text):
+        return False
+    return True
 
+
+def _parse_jina_profile_markdown(text: str, handle: str, limit: int) -> list[dict[str, Any]]:
+    """Extract status posts from Jina markdown of an x.com profile page."""
+    # Prefer timestamp / date anchors that point at /status/<id> (not /photo or /quotes).
     marker = re.compile(
-        rf"\[([^\]]+)\]\((https://x\.com/{re.escape(handle)}/status/\d+)\)",
+        rf"\[([^\]]{{1,40}})\]\((https://x\.com/{re.escape(handle)}/status/\d+)\)",
         re.IGNORECASE,
     )
-    matches = list(marker.finditer(text))
+    matches = list(marker.finditer(text or ""))
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
     for idx, match in enumerate(matches):
+        label = (match.group(1) or "").strip()
         link = match.group(2).strip()
         if link in seen:
+            continue
+        # Skip non-date chrome labels accidentally matching the pattern.
+        if label.lower() in {handle.lower(), f"@{handle.lower()}"}:
             continue
         start = match.end()
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
         body = _clean_jina_post_body(text[start:end])
-        if not body or len(body) < 12:
-            continue
-        # Skip empty quote/media-only shells.
-        if body.lower() in {"show more", "quote", "quotes"}:
+        if not _is_usable_x_headline(body, handle):
             continue
         seen.add(link)
         status_id = _status_id_from_link(link)
@@ -377,11 +395,41 @@ def _scrape_x_profile_via_jina(handle: str, limit: int = 10) -> list[dict[str, A
         )
         if len(results) >= limit:
             break
+    results.sort(key=lambda r: str(r.get("date") or ""), reverse=True)
     return results
 
 
+def _scrape_x_profile_via_jina(handle: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Read the public x.com profile through Jina's reader API."""
+    url = f"https://r.jina.ai/https://x.com/{handle}"
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            resp = requests.get(
+                url,
+                headers={
+                    "User-Agent": USER_AGENT,
+                    "X-Return-Format": "markdown",
+                    "Accept": "text/plain",
+                },
+                timeout=max(NEWS_TIMEOUT_SECS, 30),
+            )
+            resp.raise_for_status()
+            parsed = _parse_jina_profile_markdown(resp.text or "", handle, limit)
+            if parsed:
+                return parsed
+            last_error = RuntimeError("Jina profile page had no usable posts")
+        except Exception as exc:
+            last_error = exc
+        if attempt == 0:
+            time.sleep(0.6)
+    if last_error is not None:
+        raise last_error
+    return []
+
+
 def scrape_x_profile_rss(profile: str, limit: int = 10) -> list[dict[str, Any]]:
-    """Fetch recent posts for an X handle (Jina reader, then Nitter RSS mirrors)."""
+    """Fetch recent posts for an X handle (Jina reader, then Nitter-style RSS mirrors)."""
     handle = (profile or "").strip().lstrip("@")
     if not handle:
         return []
@@ -407,9 +455,17 @@ def scrape_x_profile_rss(profile: str, limit: int = 10) -> list[dict[str, Any]]:
                 last_error = RuntimeError(f"{host} returned non-RSS content")
                 continue
             parsed = _parse_nitter_rss_items(resp.content, handle, limit)
+            # Drop mirror whitelist / placeholder items that are not real posts.
+            parsed = [
+                item
+                for item in parsed
+                if _is_usable_x_headline(str(item.get("headline") or ""), handle)
+                and "/status/" in str(item.get("link") or "")
+            ]
             if parsed:
-                return parsed
-            last_error = RuntimeError(f"{host} RSS had no items")
+                parsed.sort(key=lambda r: str(r.get("date") or ""), reverse=True)
+                return parsed[:limit]
+            last_error = RuntimeError(f"{host} RSS had no usable items")
         except Exception as exc:  # Best-effort across mirrors.
             last_error = exc
             continue

@@ -15,12 +15,24 @@ from api.schemas.news import (
     BookmarkCreate,
     BookmarkOut,
     NewspaperOut,
+    XFeedItemOut,
+    XFeedsOut,
+    XFeedsRefreshOut,
 )
 from api.schemas.portfolio_view import NewsRefreshOut
 from intel_terminal.db.models import Article, ArticleBookmark, DailyNewspaper
 from intel_terminal.db.repository import get_newspaper_for_date
 from intel_terminal.pipeline.analyze import top_articles
 from intel_terminal.pipeline.ingest import run_ingest_pipeline
+from models import NewsCache
+from scraper import (
+    X_FEEDS_CACHE_KEY,
+    X_PROFILES_DEFAULT,
+    get_cached_news,
+    scrape_x_analyst_feeds,
+    upsert_cached_news,
+)
+from utils import keywords_hash
 
 news_router = APIRouter(prefix="/news", tags=["news"])
 newspaper_router = APIRouter(prefix="/newspaper", tags=["newspaper"])
@@ -55,6 +67,52 @@ def refresh_news(
         deduped=int(result.articles_deduped or 0),
         classified=int(result.articles_classified or 0),
         errors=list(result.errors or []),
+    )
+
+
+@news_router.get("/x-feeds", response_model=XFeedsOut)
+def get_x_feeds(session: DbSession, _user: CurrentUser) -> XFeedsOut:
+    """Return cached X analyst posts (same NewsCache key as Streamlit Refresh X)."""
+    cached = get_cached_news(session, X_FEEDS_CACHE_KEY)
+    k_hash = keywords_hash(X_FEEDS_CACHE_KEY)
+    row = session.execute(select(NewsCache).where(NewsCache.keywords_hash == k_hash)).scalar_one_or_none()
+    items = [XFeedItemOut.from_cache_item(item) for item in cached if isinstance(item, dict)]
+    items = [item for item in items if item.headline and item.link]
+    return XFeedsOut(
+        items=items,
+        fetched_at=row.fetched_at if row else None,
+        profiles=list(X_PROFILES_DEFAULT),
+        cache_key=X_FEEDS_CACHE_KEY,
+    )
+
+
+@news_router.post("/x-feeds/refresh", response_model=XFeedsRefreshOut)
+def refresh_x_feeds(
+    session: DbSession,
+    _user: CurrentUser,
+    limit_per_profile: int = Query(12, ge=1, le=30),
+) -> XFeedsRefreshOut:
+    """Scrape @KobeissiLetter / @citrini and upsert the X analyst NewsCache."""
+    try:
+        results = scrape_x_analyst_feeds(
+            list(X_PROFILES_DEFAULT),
+            limit_per_profile=limit_per_profile,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Could not fetch X feeds: {exc}",
+        ) from exc
+
+    upsert_cached_news(session, X_FEEDS_CACHE_KEY, results)
+    session.flush()
+    items = [XFeedItemOut.from_cache_item(item) for item in results if isinstance(item, dict)]
+    return XFeedsRefreshOut(
+        count=len(items),
+        items=items,
+        fetched_at=datetime.utcnow(),
+        profiles=list(X_PROFILES_DEFAULT),
+        errors=[],
     )
 
 

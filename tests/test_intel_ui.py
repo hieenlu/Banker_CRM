@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from intel_terminal.ui.render import INTEL_PAGES
-from intel_terminal.ui.x_feeds import X_FEEDS_CACHE_KEY, X_PROFILE_META, _filter_posts
-from scraper import X_PROFILES_DEFAULT, _nitter_link_to_x
+from intel_terminal.ui.x_feeds import X_PROFILE_META, _filter_posts
+from scraper import X_FEEDS_CACHE_KEY, X_PROFILES_DEFAULT, _nitter_link_to_x
 
 
 def test_intel_pages_include_briefing_and_archive():
@@ -28,11 +28,24 @@ def test_nitter_link_rewrites_to_x():
         _nitter_link_to_x("https://nitter.privacydev.net/citrini/status/9", "citrini")
         == "https://x.com/citrini/status/9"
     )
+    assert (
+        _nitter_link_to_x("https://rss.xcancel.com/citrini/status/9", "citrini")
+        == "https://x.com/citrini/status/9"
+    )
     assert _nitter_link_to_x("https://x.com/citrini/status/9", "citrini") == "https://x.com/citrini/status/9"
+    assert _nitter_link_to_x("https://rss.xcancel.com/KobeissiLetter/rss", "KobeissiLetter") == (
+        "https://x.com/KobeissiLetter"
+    )
 
 
 def test_snowflake_and_jina_cleanup():
-    from scraper import _clean_jina_post_body, _snowflake_to_iso, _status_id_from_link
+    from scraper import (
+        _clean_jina_post_body,
+        _is_usable_x_headline,
+        _parse_jina_profile_markdown,
+        _snowflake_to_iso,
+        _status_id_from_link,
+    )
 
     sid = _status_id_from_link("https://x.com/KobeissiLetter/status/2079213251372646426")
     assert sid == 2079213251372646426
@@ -53,6 +66,25 @@ def test_snowflake_and_jina_cleanup():
         "[99K 0 9 9 K](https://x.com/citrini/status/1/quotes)\n* Citrini @citrini"
     )
     assert cleaned_nl == "ETFs launched"
+    assert not _is_usable_x_headline("Citrini @citrini", "citrini")
+    assert not _is_usable_x_headline("RSS reader not yet whitelisted!", "citrini")
+
+    sample = (
+        "[7h](https://x.com/KobeissiLetter/status/2080443353355743663) "
+        "BREAKING: Markets rally on soft CPI. 147 315 3.8K "
+        "[](https://x.com/KobeissiLetter/status/2080443353355743663/quotes)"
+        "[341K](https://x.com/KobeissiLetter/status/2080443353355743663/quotes) "
+        "* [The Kobeissi Letter](https://x.com/KobeissiLetter) "
+        "[@KobeissiLetter](https://x.com/KobeissiLetter) "
+        "[8h](https://x.com/KobeissiLetter/status/2080424539360571422) "
+        "BREAKING: Intel beats earnings expectations. "
+    )
+    parsed = _parse_jina_profile_markdown(sample, "KobeissiLetter", limit=5)
+    assert len(parsed) == 2
+    assert parsed[0]["link"].endswith("2080443353355743663")
+    assert "soft CPI" in parsed[0]["headline"]
+    assert "The Kobeissi Letter" not in parsed[0]["headline"]
+
 
 
 def test_filter_x_posts_by_handle():

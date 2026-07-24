@@ -70,6 +70,10 @@ def test_api_client_covers_refresh_endpoints():
     assert "/portfolio/view" in api
     assert "/investments/refresh-prices" in api
     assert "/news/refresh" in api
+    assert "/news/x-feeds" in api
+    assert "/news/x-feeds/refresh" in api
+    assert "listXFeeds" in api
+    assert "refreshXFeeds" in api
     assert "updateInvestment" in api
     assert "deleteInvestment" in api
     assert "createInvestment" in api
@@ -78,6 +82,15 @@ def test_api_client_covers_refresh_endpoints():
     assert (WEB / "src" / "components" / "InvestmentEditForm.tsx").is_file()
     assert (WEB / "src" / "components" / "AddFinancialEntryForm.tsx").is_file()
     assert (WEB / "src" / "components" / "IncomeEditForm.tsx").is_file()
+
+
+def test_news_dashboard_uses_x_feeds_api():
+    page = (WEB / "src" / "app" / "(app)" / "news" / "page.tsx").read_text(encoding="utf-8")
+    assert "listXFeeds" in page
+    assert "refreshXFeeds" in page
+    assert "Refresh X" in page
+    assert 'q: "Kobeissi"' not in page
+    assert 'q: "citrini"' not in page
 
 
 def test_client_detail_supports_add_and_edit_cashflow():
