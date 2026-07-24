@@ -5,7 +5,9 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { explainError } from "@/components/AuthProvider";
+import { AddFinancialEntryForm } from "@/components/AddFinancialEntryForm";
 import { AttachmentPanel } from "@/components/AttachmentPanel";
+import { IncomeEditForm } from "@/components/IncomeEditForm";
 import { InvestmentEditForm } from "@/components/InvestmentEditForm";
 import { PortfolioTables } from "@/components/PortfolioTables";
 import {
@@ -16,6 +18,7 @@ import {
   Panel,
 } from "@/components/ui";
 import { formatDate, formatMoney, formatPct, pnlClass } from "@/lib/format";
+import type { AddEntryOption } from "@/lib/investmentMeta";
 import {
   allocationSlices,
   assetsVsDebt,
@@ -107,6 +110,12 @@ export default function ClientDetailPage() {
     closingPrice: string;
   } | null>(null);
   const [busyInvId, setBusyInvId] = useState<number | null>(null);
+  const [showAddEntry, setShowAddEntry] = useState(false);
+  const [addEntryPreset, setAddEntryPreset] = useState<
+    AddEntryOption | undefined
+  >(undefined);
+  const [editIncomeId, setEditIncomeId] = useState<number | null>(null);
+  const [busyIncomeId, setBusyIncomeId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(clientId)) return;
@@ -167,6 +176,18 @@ export default function ClientDetailPage() {
   const vsDebt = useMemo(() => assetsVsDebt(groups), [groups]);
   const openInc = useMemo(() => incomes.filter((i) => !i.is_done), [incomes]);
   const pastInc = useMemo(() => incomes.filter((i) => i.is_done), [incomes]);
+  const actualInc = useMemo(
+    () => openInc.filter((i) => (i.income_mode || "Actual") !== "Forecast"),
+    [openInc],
+  );
+  const forecastInc = useMemo(
+    () => openInc.filter((i) => (i.income_mode || "Actual") === "Forecast"),
+    [openInc],
+  );
+  const editingIncome = useMemo(
+    () => incomes.find((i) => i.id === editIncomeId) || null,
+    [incomes, editIncomeId],
+  );
 
   async function onRefreshPrices() {
     setBusy(true);
@@ -349,12 +370,42 @@ export default function ClientDetailPage() {
     setPastPortfolio(past);
   }
 
-  function startEditInvestment(id: number) {
-    setEditInvId(id);
+  async function reloadIncomes() {
+    const inc = await api.listIncomes({ client_id: clientId, page_size: 100 });
+    setIncomes(inc.items);
+  }
+
+  function openAddEntry(preset?: AddEntryOption, nextTab?: Tab) {
+    setShowAddEntry(true);
+    setAddEntryPreset(preset);
+    setEditInvId(null);
+    setEditIncomeId(null);
     setPendingDone(null);
     setEditing(false);
     setEditingInsurance(false);
+    if (nextTab) setTab(nextTab);
+    setError(null);
+    setStatus(null);
+  }
+
+  function startEditInvestment(id: number) {
+    setEditInvId(id);
+    setPendingDone(null);
+    setShowAddEntry(false);
+    setEditIncomeId(null);
+    setEditing(false);
+    setEditingInsurance(false);
     setTab("Portfolio");
+    setError(null);
+    setStatus(null);
+  }
+
+  function startEditIncome(id: number) {
+    setEditIncomeId(id);
+    setShowAddEntry(false);
+    setEditInvId(null);
+    setPendingDone(null);
+    setTab("Cashflow");
     setError(null);
     setStatus(null);
   }
@@ -368,6 +419,8 @@ export default function ClientDetailPage() {
           : "0",
     });
     setEditInvId(null);
+    setShowAddEntry(false);
+    setEditIncomeId(null);
     setError(null);
     setStatus(null);
   }
@@ -426,17 +479,87 @@ export default function ClientDetailPage() {
   }
 
   async function revertIncome(id: number) {
-    setBusy(true);
+    setBusyIncomeId(id);
     setError(null);
     try {
       await api.updateIncome(id, { is_done: false });
-      const inc = await api.listIncomes({ client_id: clientId, page_size: 100 });
-      setIncomes(inc.items);
+      await reloadIncomes();
       setStatus("Activity moved back to active.");
+      setTab("Cashflow");
     } catch (err) {
       setError(explainError(err));
     } finally {
-      setBusy(false);
+      setBusyIncomeId(null);
+    }
+  }
+
+  async function markIncomeDone(id: number) {
+    setBusyIncomeId(id);
+    setError(null);
+    try {
+      await api.updateIncome(id, { is_done: true });
+      if (editIncomeId === id) setEditIncomeId(null);
+      await reloadIncomes();
+      setStatus("Cashflow marked as done.");
+      setTab("Past");
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setBusyIncomeId(null);
+    }
+  }
+
+  async function deleteIncome(id: number) {
+    if (!window.confirm("Confirm delete cashflow entry?")) return;
+    setBusyIncomeId(id);
+    setError(null);
+    try {
+      await api.deleteIncome(id);
+      if (editIncomeId === id) setEditIncomeId(null);
+      await reloadIncomes();
+      setStatus("Cashflow deleted.");
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setBusyIncomeId(null);
+    }
+  }
+
+  async function onAddEntrySaved(result: {
+    kind: "investment" | "income" | "obligation";
+    item: unknown;
+  }) {
+    setShowAddEntry(false);
+    setAddEntryPreset(undefined);
+    try {
+      if (result.kind === "investment") {
+        setStatus("Investment added.");
+        await reloadPortfolios();
+        setTab("Portfolio");
+      } else if (result.kind === "income") {
+        setStatus("Cashflow added.");
+        await reloadIncomes();
+        setTab("Cashflow");
+      } else {
+        setStatus("Obligation added.");
+        const c = result.item as Client;
+        setClient(c);
+        setForm(c);
+        setInsuranceForm({
+          home_insurance_amount_covered:
+            c.home_insurance_amount_covered != null
+              ? String(c.home_insurance_amount_covered)
+              : "",
+          home_insurance_expiry_date: c.home_insurance_expiry_date || "",
+          home_insurance_insured_premium:
+            c.home_insurance_insured_premium != null
+              ? String(c.home_insurance_insured_premium)
+              : "",
+        });
+        setTab("More");
+      }
+    } catch (err) {
+      setError(explainError(err));
     }
   }
 
@@ -645,6 +768,30 @@ export default function ClientDetailPage() {
 
       {tab === "Portfolio" ? (
         <>
+          <div className="toolbar" style={{ marginBottom: "0.85rem" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => openAddEntry(undefined, "Portfolio")}
+            >
+              Add Investment/Debts/Cashflow
+            </button>
+          </div>
+
+          {showAddEntry ? (
+            <AddFinancialEntryForm
+              clientId={clientId}
+              initialEntryType={addEntryPreset}
+              onError={handleInvError}
+              onCancel={() => {
+                setShowAddEntry(false);
+                setAddEntryPreset(undefined);
+              }}
+              onSaved={(result) => void onAddEntrySaved(result)}
+            />
+          ) : null}
+
           {editInvId != null ? (
             <InvestmentEditForm
               investmentId={editInvId}
@@ -731,6 +878,47 @@ export default function ClientDetailPage() {
 
       {tab === "Cashflow" ? (
         <>
+          <div className="toolbar" style={{ marginBottom: "0.85rem" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => openAddEntry("Salary", "Cashflow")}
+            >
+              Add cashflow
+            </button>
+          </div>
+
+          {showAddEntry && tab === "Cashflow" ? (
+            <AddFinancialEntryForm
+              clientId={clientId}
+              initialEntryType={addEntryPreset || "Salary"}
+              onError={handleInvError}
+              onCancel={() => {
+                setShowAddEntry(false);
+                setAddEntryPreset(undefined);
+              }}
+              onSaved={(result) => void onAddEntrySaved(result)}
+            />
+          ) : null}
+
+          {editingIncome ? (
+            <IncomeEditForm
+              income={editingIncome}
+              onError={handleInvError}
+              onCancel={() => setEditIncomeId(null)}
+              onSaved={async () => {
+                setEditIncomeId(null);
+                setStatus("Income updated.");
+                try {
+                  await reloadIncomes();
+                } catch (err) {
+                  setError(explainError(err));
+                }
+              }}
+            />
+          ) : null}
+
           <div className="metric-grid" style={{ marginBottom: "1rem" }}>
             <div className="metric">
               <div className="metric-label">Salary</div>
@@ -751,7 +939,22 @@ export default function ClientDetailPage() {
               </div>
             </div>
           </div>
-          <IncomeTable items={openInc} />
+          <IncomeTable
+            items={actualInc}
+            title="Incomes"
+            busyId={busyIncomeId}
+            onEdit={startEditIncome}
+            onDone={(id) => void markIncomeDone(id)}
+            onDelete={(id) => void deleteIncome(id)}
+          />
+          <IncomeTable
+            items={forecastInc}
+            title="Forecast incomes"
+            busyId={busyIncomeId}
+            onEdit={startEditIncome}
+            onDone={(id) => void markIncomeDone(id)}
+            onDelete={(id) => void deleteIncome(id)}
+          />
         </>
       ) : null}
 
@@ -772,6 +975,7 @@ export default function ClientDetailPage() {
           <IncomeTable
             items={pastInc}
             title="Completed incomes"
+            busyId={busyIncomeId}
             onRevert={(id) => void revertIncome(id)}
           />
         </>
@@ -779,6 +983,30 @@ export default function ClientDetailPage() {
 
       {tab === "More" ? (
         <>
+          <div className="toolbar" style={{ marginBottom: "0.85rem" }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={() => openAddEntry(undefined, "More")}
+            >
+              Add Investment/Debts/Cashflow
+            </button>
+          </div>
+
+          {showAddEntry ? (
+            <AddFinancialEntryForm
+              clientId={clientId}
+              initialEntryType={addEntryPreset}
+              onError={handleInvError}
+              onCancel={() => {
+                setShowAddEntry(false);
+                setAddEntryPreset(undefined);
+              }}
+              onSaved={(result) => void onAddEntrySaved(result)}
+            />
+          ) : null}
+
           <Panel
             title="Client's information"
             actions={
@@ -1116,12 +1344,23 @@ function OverviewTab({
 function IncomeTable({
   items,
   title = "Incomes",
+  busyId = null,
+  onEdit,
+  onDone,
+  onDelete,
   onRevert,
 }: {
   items: Income[];
   title?: string;
+  busyId?: number | null;
+  onEdit?: (id: number) => void;
+  onDone?: (id: number) => void;
+  onDelete?: (id: number) => void;
   onRevert?: (id: number) => void;
 }) {
+  const showActiveActions = Boolean(onEdit || onDone || onDelete);
+  const showRevert = Boolean(onRevert);
+
   return (
     <Panel title={title}>
       {items.length ? (
@@ -1132,30 +1371,75 @@ function IncomeTable({
                 <th>Type</th>
                 <th>Mode</th>
                 <th>Amount (VND)</th>
+                <th>Concurrent</th>
                 <th>Note</th>
-                {onRevert ? <th>Rollback</th> : null}
+                {showActiveActions || showRevert ? <th>Actions</th> : null}
               </tr>
             </thead>
             <tbody>
-              {items.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.income_type}</td>
-                  <td>{row.income_mode}</td>
-                  <td>{formatMoney(row.amount, "VND")}</td>
-                  <td>{row.note || "—"}</td>
-                  {onRevert ? (
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => onRevert(row.id)}
-                      >
-                        ↩ Active
-                      </button>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
+              {items.map((row) => {
+                const busy = busyId === row.id;
+                return (
+                  <tr key={row.id}>
+                    <td>{row.income_type}</td>
+                    <td>{row.income_mode}</td>
+                    <td>{formatMoney(row.amount, "VND")}</td>
+                    <td>{row.concurrent ? "Yes" : "No"}</td>
+                    <td>{row.note || "—"}</td>
+                    {showActiveActions ? (
+                      <td>
+                        <div className="row-actions">
+                          {onEdit ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              title="Edit cashflow"
+                              disabled={busy}
+                              onClick={() => onEdit(row.id)}
+                            >
+                              ✏
+                            </button>
+                          ) : null}
+                          {onDone ? (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              title="Mark done"
+                              disabled={busy}
+                              onClick={() => onDone(row.id)}
+                            >
+                              ✔
+                            </button>
+                          ) : null}
+                          {onDelete ? (
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              title="Delete cashflow"
+                              disabled={busy}
+                              onClick={() => onDelete(row.id)}
+                            >
+                              ✖
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    ) : null}
+                    {showRevert && !showActiveActions ? (
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={busy}
+                          onClick={() => onRevert?.(row.id)}
+                        >
+                          ↩ Active
+                        </button>
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

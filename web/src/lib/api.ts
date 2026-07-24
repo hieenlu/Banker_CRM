@@ -5,7 +5,9 @@ import type {
   Client,
   ClientCreate,
   Income,
+  IncomeCreate,
   Investment,
+  InvestmentCreate,
   MeResponse,
   NewsRefreshResult,
   Newspaper,
@@ -150,6 +152,12 @@ export const api = {
   getInvestment(id: number) {
     return apiFetch<Investment>(`/investments/${id}`);
   },
+  createInvestment(body: InvestmentCreate) {
+    return apiFetch<Investment>("/investments", {
+      method: "POST",
+      body,
+    });
+  },
   updateInvestment(id: number, body: Partial<Investment>) {
     return apiFetch<Investment>(`/investments/${id}`, {
       method: "PATCH",
@@ -161,10 +169,21 @@ export const api = {
       method: "DELETE",
     });
   },
+  createIncome(body: IncomeCreate) {
+    return apiFetch<Income>("/incomes", {
+      method: "POST",
+      body,
+    });
+  },
   updateIncome(id: number, body: Partial<Income>) {
     return apiFetch<Income>(`/incomes/${id}`, {
       method: "PATCH",
       body,
+    });
+  },
+  deleteIncome(id: number) {
+    return apiFetch<{ detail: string }>(`/incomes/${id}`, {
+      method: "DELETE",
     });
   },
   portfolioView(params: {

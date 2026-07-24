@@ -76,6 +76,39 @@ export type Income = {
   note: string | null;
 };
 
+export type IncomeCreate = {
+  client_id: number;
+  income_type: string;
+  income_mode?: string;
+  amount?: number;
+  concurrent?: boolean;
+  is_done?: boolean;
+  note?: string | null;
+};
+
+export type InvestmentCreate = {
+  client_id: number;
+  asset_type: string;
+  ticker_name?: string | null;
+  ticker_identifier?: string | null;
+  quantity?: number;
+  unit?: number | null;
+  principal?: number | null;
+  purchase_price?: number;
+  currency?: string;
+  purchase_date?: string | null;
+  tenor?: string | null;
+  interest_rate?: number | null;
+  principal_payment?: number | null;
+  ytm?: number | null;
+  current_price?: number | null;
+  received_coupon?: number | null;
+  expected_coupon?: number | null;
+  maturity_date?: string | null;
+  is_done?: boolean;
+  notes?: string | null;
+};
+
 export type Reminder = {
   id: number;
   title: string;

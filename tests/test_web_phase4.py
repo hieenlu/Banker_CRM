@@ -72,4 +72,25 @@ def test_api_client_covers_refresh_endpoints():
     assert "/news/refresh" in api
     assert "updateInvestment" in api
     assert "deleteInvestment" in api
+    assert "createInvestment" in api
+    assert "createIncome" in api
+    assert "deleteIncome" in api
     assert (WEB / "src" / "components" / "InvestmentEditForm.tsx").is_file()
+    assert (WEB / "src" / "components" / "AddFinancialEntryForm.tsx").is_file()
+    assert (WEB / "src" / "components" / "IncomeEditForm.tsx").is_file()
+
+
+def test_client_detail_supports_add_and_edit_cashflow():
+    page = (WEB / "src" / "app" / "(app)" / "clients" / "[id]" / "page.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "AddFinancialEntryForm" in page
+    assert "IncomeEditForm" in page
+    assert "Add Investment/Debts/Cashflow" in page
+    assert "startEditIncome" in page
+    assert "markIncomeDone" in page
+    assert "deleteIncome" in page
+    meta = (WEB / "src" / "lib" / "investmentMeta.ts").read_text(encoding="utf-8")
+    assert "CASHFLOW_TYPES" in meta
+    assert "OBLIGATION_TYPES" in meta
+    assert "ADD_ENTRY_OPTIONS" in meta
