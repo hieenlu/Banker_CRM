@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -24,7 +23,6 @@ export default function ClientsPage() {
   const [items, setItems] = useState<Client[]>([]);
   const [pages, setPages] = useState(1);
   const [total, setTotal] = useState(0);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -43,15 +41,6 @@ export default function ClientsPage() {
       setItems(data.items);
       setPages(data.pages);
       setTotal(data.total);
-      if (data.items.length) {
-        setSelectedId((prev) =>
-          prev && data.items.some((c) => c.id === prev)
-            ? prev
-            : data.items[0].id,
-        );
-      } else {
-        setSelectedId(null);
-      }
     } catch (err) {
       setError(explainError(err));
     } finally {
@@ -105,27 +94,24 @@ export default function ClientsPage() {
     }
   }
 
-  const selected = items.find((c) => c.id === selectedId) || null;
-
   return (
     <>
       <PageHeader
-        title="Banker Personal CRM"
-        description="Client Actions"
+        title="Clients"
+        description="Search the book, then open a desk."
         actions={
           <button
             type="button"
             className="btn btn-primary"
             onClick={() => setShowCreate((v) => !v)}
-            aria-label="Add client"
           >
-            {showCreate ? "Cancel" : "+"}
+            {showCreate ? "Cancel" : "New client"}
           </button>
         }
       />
 
       {showCreate ? (
-        <Panel title="Add client">
+        <Panel title="New client">
           <form className="toolbar" onSubmit={onCreate}>
             <label className="field" style={{ flex: 1, minWidth: 200 }}>
               <span>Full name</span>
@@ -133,33 +119,32 @@ export default function ClientsPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
+                autoFocus
               />
             </label>
             <button type="submit" className="btn btn-primary" disabled={busy}>
-              {busy ? "Creating…" : "Create"}
+              {busy ? "Creating…" : "Create & open"}
             </button>
           </form>
         </Panel>
       ) : null}
 
+      <ErrorBanner message={error} />
+
       <Panel>
-        <form className="toolbar" onSubmit={onSearch}>
+        <form className="toolbar" onSubmit={onSearch} style={{ marginBottom: "0.85rem" }}>
           <input
             className="search-input"
             placeholder="Search by name, email, phone…"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            style={{ maxWidth: 360 }}
+            style={{ maxWidth: 360, flex: 1 }}
           />
           <button type="submit" className="btn btn-secondary">
             Search
           </button>
         </form>
-      </Panel>
 
-      <ErrorBanner message={error} />
-
-      <Panel>
         {loading ? <LoadingBlock /> : null}
         {!loading && !items.length ? (
           <EmptyState
@@ -183,18 +168,9 @@ export default function ClientsPage() {
                   <tr
                     key={c.id}
                     className="clickable"
-                    onClick={() => setSelectedId(c.id)}
-                    style={
-                      selectedId === c.id
-                        ? { background: "rgba(214, 40, 40, 0.08)" }
-                        : undefined
-                    }
+                    onClick={() => router.push(`/clients/${c.id}`)}
                   >
-                    <td>
-                      <Link className="linkish" href={`/clients/${c.id}`}>
-                        {c.name}
-                      </Link>
-                    </td>
+                    <td className="linkish">{c.name}</td>
                     <td>{formatDate(c.birthday)}</td>
                     <td>{c.phone_number || "—"}</td>
                     <td>{c.email || "—"}</td>
@@ -205,7 +181,8 @@ export default function ClientsPage() {
           </div>
         ) : null}
         <p className="caption">
-          Loaded {total} clients{items.length ? ` · showing ${items.length}` : ""}.
+          {total} client{total === 1 ? "" : "s"}
+          {query ? ` matching “${query}”` : ""}.
         </p>
         <Pagination
           page={page}
@@ -213,33 +190,6 @@ export default function ClientsPage() {
           total={total}
           onChange={setPage}
         />
-      </Panel>
-
-      <Panel title="Open client">
-        <div className="toolbar">
-          <label className="field" style={{ flex: 1, minWidth: 220 }}>
-            <span>Client</span>
-            <select
-              value={selectedId ?? ""}
-              onChange={(e) => setSelectedId(Number(e.target.value))}
-            >
-              {items.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.birthday ? ` · ${c.birthday}` : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={!selected}
-            onClick={() => selected && router.push(`/clients/${selected.id}`)}
-          >
-            Open client dashboard
-          </button>
-        </div>
       </Panel>
     </>
   );

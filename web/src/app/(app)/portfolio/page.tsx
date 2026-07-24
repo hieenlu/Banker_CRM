@@ -16,6 +16,7 @@ import type { PortfolioView } from "@/lib/types";
 export default function PortfolioPage() {
   const [view, setView] = useState<PortfolioView | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +70,7 @@ export default function PortfolioPage() {
     <>
       <PageHeader
         title="Portfolio"
-        description="Holdings grouped like Streamlit (Cash, Bonds, VN/US stocks, …). Display currency VND."
+        description="Book-wide holdings. Expand a group to inspect positions."
         actions={
           <>
             <button
@@ -79,6 +80,13 @@ export default function PortfolioPage() {
               onClick={() => void onRefreshPrices()}
             >
               {busy ? "Refreshing…" : "Refresh prices"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => setShowDetails((v) => !v)}
+            >
+              {showDetails ? "Compact columns" : "All columns"}
             </button>
             <button
               type="button"
@@ -97,7 +105,7 @@ export default function PortfolioPage() {
       {totals ? (
         <div className="metric-grid" style={{ marginBottom: "1rem" }}>
           <div className="metric">
-            <div className="metric-label">Principal (VND)</div>
+            <div className="metric-label">Principal</div>
             <div className="metric-value">
               {formatMoney(totals.principal, "VND")}
             </div>
@@ -126,12 +134,19 @@ export default function PortfolioPage() {
       {view ? (
         <p className="muted small" style={{ marginBottom: "0.75rem" }}>
           FX: 1 USD = {formatMoney(view.usd_vnd_rate, "VND").replace(" ₫", "")}{" "}
-          VND (from Settings / crm_settings.json)
+          VND
         </p>
       ) : null}
 
       {loading ? <LoadingBlock /> : null}
-      {!loading && view ? <PortfolioTables view={view} showClient /> : null}
+      {!loading && view ? (
+        <PortfolioTables
+          view={view}
+          showClient
+          compact={!showDetails}
+          collapsedByDefault
+        />
+      ) : null}
       {!loading && !view?.groups.length ? (
         <Panel>
           <p className="muted">No open investments yet.</p>

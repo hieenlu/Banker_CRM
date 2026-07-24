@@ -177,13 +177,6 @@ h2 {
   justify-self: start;
 }
 
-.client-actions {
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--crm-border);
-  border-radius: var(--radius);
-  background: var(--crm-panel);
-}
-
 .btn {
   min-height: 40px;
   border-radius: 8px;
@@ -630,6 +623,97 @@ table.data tr.clickable {
   font-weight: 600;
 }
 
+.desk-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.35rem 0.2rem 0.7rem;
+  border: 1px solid var(--crm-border);
+  border-radius: 999px;
+  color: var(--crm-muted);
+  font-size: 0.82rem;
+}
+
+.cashflow-sum {
+  margin: 0;
+}
+
+.section-intro {
+  margin-bottom: 0.75rem;
+}
+
+.section-heading {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.holdings-block {
+  border: 1px solid var(--crm-border);
+  border-radius: var(--radius);
+  background: var(--crm-panel);
+  margin-bottom: 0.55rem;
+  overflow: hidden;
+}
+
+.holdings-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.holdings-toggle:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.holdings-toggle-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.7rem;
+  min-width: 0;
+}
+
+.holdings-chevron {
+  color: var(--crm-muted);
+  width: 0.9rem;
+}
+
+.holdings-name {
+  font-weight: 650;
+  font-size: 0.95rem;
+}
+
+.holdings-body {
+  border-top: 1px solid var(--crm-border);
+  padding: 0.35rem 0.55rem 0.65rem;
+}
+
+.portfolio-stack .group-title {
+  margin: 0.15rem 0 0.55rem;
+  font-size: 1.05rem;
+  color: var(--crm-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 650;
+}
+
 /* News 3-column desk */
 .news-desk {
   display: grid;
@@ -767,6 +851,16 @@ table.data tr.clickable {
   border-radius: 10px;
   padding: 0.75rem 0.8rem;
   border-top: 3px solid var(--card-accent, #64748b);
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+}
+
+.asset-card:hover {
+  border-color: rgba(214, 40, 40, 0.45);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .asset-card-head {
