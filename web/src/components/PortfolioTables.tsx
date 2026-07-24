@@ -95,7 +95,7 @@ export function PortfolioTables({
     return (
       <EmptyState
         title="No investments"
-        description="Add holdings in Streamlit or via the API, then refresh prices."
+        description="Add holdings via Add Investment/Debts/Cashflow on a client, or via the API, then refresh prices."
       />
     );
   }

@@ -15,9 +15,49 @@ export const ASSET_TYPES = [
 
 export type AssetType = (typeof ASSET_TYPES)[number];
 
+/** Cashflow entry types stored as Income rows (Streamlit add expander). */
+export const CASHFLOW_TYPES = [
+  "Salary",
+  "Dividends",
+  "Other Incomes",
+  "Other Obligations",
+] as const;
+
+export type CashflowType = (typeof CASHFLOW_TYPES)[number];
+
+/** Obligation types stored on the client record. */
+export const OBLIGATION_TYPES = ["Home Insurance"] as const;
+
+export type ObligationType = (typeof OBLIGATION_TYPES)[number];
+
+export const ADD_ENTRY_OPTIONS = [
+  ...ASSET_TYPES,
+  ...CASHFLOW_TYPES,
+  ...OBLIGATION_TYPES,
+] as const;
+
+export type AddEntryOption = (typeof ADD_ENTRY_OPTIONS)[number];
+
+export const INCOME_MODES = ["Actual", "Forecast"] as const;
+
 export const TERM_TENOR_OPTIONS = Array.from({ length: 12 }, (_, i) =>
   i === 0 ? "1 month" : `${i + 1} months`,
 );
+
+export function isCashflowType(t: string): t is CashflowType {
+  return (CASHFLOW_TYPES as readonly string[]).includes(t);
+}
+
+export function isObligationType(t: string): t is ObligationType {
+  return (OBLIGATION_TYPES as readonly string[]).includes(t);
+}
+
+export function normalizeIncomeType(t: string | null | undefined): CashflowType {
+  const s = (t || "").trim();
+  if (s === "Others") return "Other Incomes";
+  const match = CASHFLOW_TYPES.find((x) => x.toLowerCase() === s.toLowerCase());
+  return match || "Other Incomes";
+}
 
 export function normalizeAssetType(t: string | null | undefined): AssetType {
   const s = (t || "").trim();
