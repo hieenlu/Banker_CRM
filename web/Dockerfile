@@ -15,7 +15,7 @@ ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 # Optional same-origin rewrite target (server-side only).
 ARG CRM_API_ORIGIN=
 ENV CRM_API_ORIGIN=$CRM_API_ORIGIN
-# Visible in the iPad sidebar so you can confirm the live build.
+# Visible in the top nav so you can confirm the live build.
 ARG NEXT_PUBLIC_WEB_BUILD_ID=dev-local
 ENV NEXT_PUBLIC_WEB_BUILD_ID=$NEXT_PUBLIC_WEB_BUILD_ID
 
