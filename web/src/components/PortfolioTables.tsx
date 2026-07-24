@@ -23,11 +23,21 @@ const MONEY_COLS = new Set([
   "Interest",
   "Expected Coupon (Amount)",
   "Received Coupon (Amount)",
+  "Closing Value",
+  "Realized P&L",
 ]);
 
-const PRICE_COLS = new Set(["Buy Price", "Current Price"]);
+const PRICE_COLS = new Set(["Buy Price", "Current Price", "Closing Price"]);
 const PCT_COLS = new Set(["P&L %", "Interest Rate %", "YTM %"]);
 const DATE_COLS = new Set(["Buy Date", "Purchase Date", "Maturity Date"]);
+
+function pastColumnLabel(col: string, pastMode: boolean): string {
+  if (!pastMode) return col;
+  if (col === "Current Price") return "Closing Price";
+  if (col === "Current Value") return "Closing Value";
+  if (col === "Unrealized P&L") return "Realized P&L";
+  return col;
+}
 
 function cellValue(
   col: string,
@@ -43,11 +53,9 @@ function cellValue(
   }
   if (DATE_COLS.has(col)) return formatDate(String(raw));
   if (PRICE_COLS.has(col)) {
-    // Buy/current price stay in native asset currency (VND for VN stocks, USD for US).
     return formatMoney(Number(raw), nativeCurrency);
   }
   if (MONEY_COLS.has(col)) {
-    // Streamlit shows row money in native currency for equities/bonds; debt uses display.
     const ccy =
       col === "Outstanding Balance" ||
       col === "Principal Payment" ||
@@ -61,13 +69,28 @@ function cellValue(
   return String(raw);
 }
 
+export type PortfolioRowActions = {
+  mode?: "readonly" | "active" | "past";
+  onEdit?: (investmentId: number) => void;
+  onDone?: (investmentId: number, currentPrice: number | null) => void;
+  onDelete?: (investmentId: number) => void;
+  onRevert?: (investmentId: number) => void;
+  busyId?: number | null;
+};
+
 export function PortfolioTables({
   view,
   showClient = false,
+  actions,
 }: {
   view: PortfolioView;
   showClient?: boolean;
+  actions?: PortfolioRowActions;
 }) {
+  const mode = actions?.mode || "readonly";
+  const pastMode = mode === "past";
+  const showActions = mode === "active" || mode === "past";
+
   if (!view.groups.length) {
     return (
       <EmptyState
@@ -83,16 +106,16 @@ export function PortfolioTables({
         <div key={group.name} className="portfolio-group">
           <h2 className="group-title">{group.name}</h2>
           {group.subgroups.map((sub) => {
-            const cols = showClient
-              ? ["Client", ...sub.columns]
-              : sub.columns;
+            const cols = showClient ? ["Client", ...sub.columns] : sub.columns;
             return (
               <Panel
                 key={`${group.name}-${sub.name}`}
                 title={sub.name}
                 actions={
-                  <span className={`muted small ${pnlClass(sub.unrealized_pnl)}`}>
-                    Unrealized P&L{" "}
+                  <span
+                    className={`muted small ${pnlClass(sub.unrealized_pnl)}`}
+                  >
+                    {pastMode ? "Realized P&L" : "Unrealized P&L"}{" "}
                     {formatMoney(sub.unrealized_pnl, sub.native_currency)}
                   </span>
                 }
@@ -102,8 +125,9 @@ export function PortfolioTables({
                     <thead>
                       <tr>
                         {cols.map((c) => (
-                          <th key={c}>{c}</th>
+                          <th key={c}>{pastColumnLabel(c, pastMode)}</th>
                         ))}
+                        {showActions ? <th>Actions</th> : null}
                       </tr>
                     </thead>
                     <tbody>
@@ -112,6 +136,13 @@ export function PortfolioTables({
                         const native = String(
                           row.native_currency || sub.native_currency || "VND",
                         );
+                        const busy = actions?.busyId === id;
+                        const currentPrice =
+                          row["Current Price"] != null
+                            ? Number(row["Current Price"])
+                            : row.current_price != null
+                              ? Number(row.current_price)
+                              : null;
                         return (
                           <tr key={id}>
                             {cols.map((c) => {
@@ -153,6 +184,55 @@ export function PortfolioTables({
                                 </td>
                               );
                             })}
+                            {showActions ? (
+                              <td>
+                                <div className="row-actions">
+                                  {mode === "active" ? (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="btn btn-ghost"
+                                        title="Edit this investment"
+                                        disabled={busy}
+                                        onClick={() => actions?.onEdit?.(id)}
+                                      >
+                                        ✏
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn btn-secondary"
+                                        title="Mark done"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          actions?.onDone?.(id, currentPrice)
+                                        }
+                                      >
+                                        Done
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn btn-primary"
+                                        title="Delete investment"
+                                        disabled={busy}
+                                        onClick={() => actions?.onDelete?.(id)}
+                                      >
+                                        ✖
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="btn btn-secondary"
+                                      title="Move back to active"
+                                      disabled={busy}
+                                      onClick={() => actions?.onRevert?.(id)}
+                                    >
+                                      ↩ Active
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            ) : null}
                           </tr>
                         );
                       })}

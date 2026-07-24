@@ -147,6 +147,26 @@ export const api = {
   } = {}) {
     return apiFetch<Page<Investment>>("/investments", { query: params });
   },
+  getInvestment(id: number) {
+    return apiFetch<Investment>(`/investments/${id}`);
+  },
+  updateInvestment(id: number, body: Partial<Investment>) {
+    return apiFetch<Investment>(`/investments/${id}`, {
+      method: "PATCH",
+      body,
+    });
+  },
+  deleteInvestment(id: number) {
+    return apiFetch<{ detail: string }>(`/investments/${id}`, {
+      method: "DELETE",
+    });
+  },
+  updateIncome(id: number, body: Partial<Income>) {
+    return apiFetch<Income>(`/incomes/${id}`, {
+      method: "PATCH",
+      body,
+    });
+  },
   portfolioView(params: {
     client_id?: number;
     is_done?: boolean | null;
