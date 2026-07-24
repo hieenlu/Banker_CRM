@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { explainError } from "@/components/AuthProvider";
 import { AttachmentPanel } from "@/components/AttachmentPanel";
+import { InvestmentEditForm } from "@/components/InvestmentEditForm";
 import { PortfolioTables } from "@/components/PortfolioTables";
 import {
   EmptyState,
@@ -100,6 +101,12 @@ export default function ClientDetailPage() {
   const [hasBirthday, setHasBirthday] = useState(false);
   const [busy, setBusy] = useState(false);
   const [drillGroup, setDrillGroup] = useState<string | null>(null);
+  const [editInvId, setEditInvId] = useState<number | null>(null);
+  const [pendingDone, setPendingDone] = useState<{
+    id: number;
+    closingPrice: string;
+  } | null>(null);
+  const [busyInvId, setBusyInvId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(clientId)) return;
@@ -321,6 +328,118 @@ export default function ClientDetailPage() {
     }
   }
 
+  const handleInvError = useCallback((message: string) => {
+    setError(message);
+  }, []);
+
+  async function reloadPortfolios() {
+    const [port, past] = await Promise.all([
+      api.portfolioView({
+        client_id: clientId,
+        is_done: false,
+        display_currency: "VND",
+      }),
+      api.portfolioView({
+        client_id: clientId,
+        is_done: true,
+        display_currency: "VND",
+      }),
+    ]);
+    setPortfolio(port);
+    setPastPortfolio(past);
+  }
+
+  function startEditInvestment(id: number) {
+    setEditInvId(id);
+    setPendingDone(null);
+    setEditing(false);
+    setEditingInsurance(false);
+    setTab("Portfolio");
+    setError(null);
+    setStatus(null);
+  }
+
+  function startDoneInvestment(id: number, currentPrice: number | null) {
+    setPendingDone({
+      id,
+      closingPrice:
+        currentPrice != null && Number.isFinite(currentPrice)
+          ? String(currentPrice)
+          : "0",
+    });
+    setEditInvId(null);
+    setError(null);
+    setStatus(null);
+  }
+
+  async function confirmDoneInvestment() {
+    if (!pendingDone) return;
+    setBusyInvId(pendingDone.id);
+    setError(null);
+    try {
+      const close = Number(pendingDone.closingPrice);
+      await api.updateInvestment(pendingDone.id, {
+        is_done: true,
+        current_price: Number.isFinite(close) ? close : 0,
+      });
+      setPendingDone(null);
+      setStatus("Investment marked as done.");
+      await reloadPortfolios();
+      setTab("Past");
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setBusyInvId(null);
+    }
+  }
+
+  async function revertInvestment(id: number) {
+    setBusyInvId(id);
+    setError(null);
+    try {
+      await api.updateInvestment(id, { is_done: false });
+      setStatus("Investment moved back to active.");
+      await reloadPortfolios();
+      setTab("Portfolio");
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setBusyInvId(null);
+    }
+  }
+
+  async function deleteInvestment(id: number) {
+    if (!window.confirm("Confirm delete investment?")) return;
+    setBusyInvId(id);
+    setError(null);
+    try {
+      await api.deleteInvestment(id);
+      if (editInvId === id) setEditInvId(null);
+      if (pendingDone?.id === id) setPendingDone(null);
+      setStatus("Investment deleted.");
+      await reloadPortfolios();
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setBusyInvId(null);
+    }
+  }
+
+  async function revertIncome(id: number) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.updateIncome(id, { is_done: false });
+      const inc = await api.listIncomes({ client_id: clientId, page_size: 100 });
+      setIncomes(inc.items);
+      setStatus("Activity moved back to active.");
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading) return <LoadingBlock label="Loading client…" />;
   if (!client) {
     return (
@@ -525,11 +644,89 @@ export default function ClientDetailPage() {
       ) : null}
 
       {tab === "Portfolio" ? (
-        portfolio ? (
-          <PortfolioTables view={portfolio} />
-        ) : (
-          <EmptyState title="No open investments" />
-        )
+        <>
+          {editInvId != null ? (
+            <InvestmentEditForm
+              investmentId={editInvId}
+              onError={handleInvError}
+              onCancel={() => {
+                setEditInvId(null);
+                setStatus(null);
+              }}
+              onSaved={async () => {
+                setEditInvId(null);
+                setStatus("Investment updated.");
+                try {
+                  await reloadPortfolios();
+                } catch (err) {
+                  setError(explainError(err));
+                }
+              }}
+            />
+          ) : null}
+
+          {pendingDone ? (
+            <Panel title="Mark investment done">
+              <p className="muted">
+                Set closing price before moving investment to past?
+              </p>
+              <form
+                className="stack"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void confirmDoneInvestment();
+                }}
+              >
+                <label className="field">
+                  <span>Closing Price</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.01}
+                    value={pendingDone.closingPrice}
+                    onChange={(e) =>
+                      setPendingDone((p) =>
+                        p ? { ...p, closingPrice: e.target.value } : p,
+                      )
+                    }
+                  />
+                </label>
+                <div className="toolbar">
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={busyInvId === pendingDone.id}
+                  >
+                    Confirm done
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={busyInvId === pendingDone.id}
+                    onClick={() => setPendingDone(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </Panel>
+          ) : null}
+
+          {portfolio ? (
+            <PortfolioTables
+              view={portfolio}
+              actions={{
+                mode: "active",
+                busyId: busyInvId,
+                onEdit: startEditInvestment,
+                onDone: startDoneInvestment,
+                onDelete: (id) => void deleteInvestment(id),
+              }}
+            />
+          ) : (
+            <EmptyState title="No open investments" />
+          )}
+        </>
       ) : null}
 
       {tab === "Cashflow" ? (
@@ -561,11 +758,22 @@ export default function ClientDetailPage() {
       {tab === "Past" ? (
         <>
           {pastPortfolio?.groups.length ? (
-            <PortfolioTables view={pastPortfolio} />
+            <PortfolioTables
+              view={pastPortfolio}
+              actions={{
+                mode: "past",
+                busyId: busyInvId,
+                onRevert: (id) => void revertInvestment(id),
+              }}
+            />
           ) : (
             <EmptyState title="No completed investments" />
           )}
-          <IncomeTable items={pastInc} title="Completed incomes" />
+          <IncomeTable
+            items={pastInc}
+            title="Completed incomes"
+            onRevert={(id) => void revertIncome(id)}
+          />
         </>
       ) : null}
 
@@ -908,9 +1116,11 @@ function OverviewTab({
 function IncomeTable({
   items,
   title = "Incomes",
+  onRevert,
 }: {
   items: Income[];
   title?: string;
+  onRevert?: (id: number) => void;
 }) {
   return (
     <Panel title={title}>
@@ -923,6 +1133,7 @@ function IncomeTable({
                 <th>Mode</th>
                 <th>Amount (VND)</th>
                 <th>Note</th>
+                {onRevert ? <th>Rollback</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -932,6 +1143,17 @@ function IncomeTable({
                   <td>{row.income_mode}</td>
                   <td>{formatMoney(row.amount, "VND")}</td>
                   <td>{row.note || "—"}</td>
+                  {onRevert ? (
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => onRevert(row.id)}
+                      >
+                        ↩ Active
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>

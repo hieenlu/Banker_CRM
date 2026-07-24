@@ -70,3 +70,6 @@ def test_api_client_covers_refresh_endpoints():
     assert "/portfolio/view" in api
     assert "/investments/refresh-prices" in api
     assert "/news/refresh" in api
+    assert "updateInvestment" in api
+    assert "deleteInvestment" in api
+    assert (WEB / "src" / "components" / "InvestmentEditForm.tsx").is_file()
