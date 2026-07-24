@@ -29,12 +29,11 @@ import {
 import type {
   Client,
   Income,
-  PortfolioSubgroup,
   PortfolioView,
   Reminder,
 } from "@/lib/types";
 
-const TABS = ["Overview", "Portfolio", "Cashflow", "Past", "More"] as const;
+const TABS = ["Overview", "Holdings", "Cashflow", "History", "Profile"] as const;
 type Tab = (typeof TABS)[number];
 
 function groupsFromView(view: PortfolioView | null): GroupTotals[] {
@@ -53,29 +52,43 @@ function groupsFromView(view: PortfolioView | null): GroupTotals[] {
           sum + Number(r["Principal Display"] ?? r["Principal"] ?? 0),
         0,
       );
+      const monthly = s.rows.reduce(
+        (sum, r) => sum + Number(r["Total Monthly Payment"] ?? 0),
+        0,
+      );
       out.push({
         name: s.name,
         value,
         cost,
         count: s.rows.length,
         items: [],
+        monthly,
       });
     }
   }
   return out.sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
 }
 
-function findSubgroup(
-  view: PortfolioView | null,
-  name: string | null,
-): PortfolioSubgroup | null {
-  if (!view || !name) return null;
-  for (const g of view.groups) {
-    for (const s of g.subgroups) {
-      if (s.name === name) return s;
-    }
+function cardSecondary(g: GroupTotals): { label: string; value: number; tone?: boolean } {
+  const meta = subgroupMeta(g.name);
+  if (g.name === "Debt") {
+    return { label: meta.m2, value: g.monthly || 0 };
   }
-  return null;
+  if (g.name === "Real Estate") {
+    return { label: meta.m2, value: g.value };
+  }
+  if (g.name === "Cash" || g.name === "Cash and CDs") {
+    return { label: meta.m2, value: g.cost };
+  }
+  return { label: meta.m2, value: g.value - g.cost, tone: true };
+}
+
+function cardPrimary(g: GroupTotals): { label: string; value: number } {
+  const meta = subgroupMeta(g.name);
+  if (g.name === "Real Estate") {
+    return { label: meta.m1, value: g.cost };
+  }
+  return { label: meta.m1, value: g.value };
 }
 
 export default function ClientDetailPage() {
@@ -103,7 +116,7 @@ export default function ClientDetailPage() {
   });
   const [hasBirthday, setHasBirthday] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [drillGroup, setDrillGroup] = useState<string | null>(null);
+  const [focusSubgroup, setFocusSubgroup] = useState<string | null>(null);
   const [editInvId, setEditInvId] = useState<number | null>(null);
   const [pendingDone, setPendingDone] = useState<{
     id: number;
@@ -116,6 +129,7 @@ export default function ClientDetailPage() {
   >(undefined);
   const [editIncomeId, setEditIncomeId] = useState<number | null>(null);
   const [busyIncomeId, setBusyIncomeId] = useState<number | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   const load = useCallback(async () => {
     if (!Number.isFinite(clientId)) return;
@@ -188,6 +202,10 @@ export default function ClientDetailPage() {
     () => incomes.find((i) => i.id === editIncomeId) || null,
     [incomes, editIncomeId],
   );
+  const cashflowTotal = useMemo(
+    () => actualInc.reduce((s, i) => s + Number(i.amount || 0), 0),
+    [actualInc],
+  );
 
   async function onRefreshPrices() {
     setBusy(true);
@@ -218,7 +236,7 @@ export default function ClientDetailPage() {
     setHasBirthday(Boolean(client.birthday));
     setEditing(true);
     setEditingInsurance(false);
-    setTab("More");
+    setTab("Profile");
     setStatus(null);
     setError(null);
   }
@@ -388,6 +406,14 @@ export default function ClientDetailPage() {
     setStatus(null);
   }
 
+  function openHoldings(subgroup?: string) {
+    setFocusSubgroup(subgroup || null);
+    setTab("Holdings");
+    setShowAddEntry(false);
+    setEditInvId(null);
+    setPendingDone(null);
+  }
+
   function startEditInvestment(id: number) {
     setEditInvId(id);
     setPendingDone(null);
@@ -395,7 +421,7 @@ export default function ClientDetailPage() {
     setEditIncomeId(null);
     setEditing(false);
     setEditingInsurance(false);
-    setTab("Portfolio");
+    setTab("Holdings");
     setError(null);
     setStatus(null);
   }
@@ -438,7 +464,7 @@ export default function ClientDetailPage() {
       setPendingDone(null);
       setStatus("Investment marked as done.");
       await reloadPortfolios();
-      setTab("Past");
+      setTab("History");
     } catch (err) {
       setError(explainError(err));
     } finally {
@@ -453,7 +479,7 @@ export default function ClientDetailPage() {
       await api.updateInvestment(id, { is_done: false });
       setStatus("Investment moved back to active.");
       await reloadPortfolios();
-      setTab("Portfolio");
+      setTab("Holdings");
     } catch (err) {
       setError(explainError(err));
     } finally {
@@ -501,7 +527,7 @@ export default function ClientDetailPage() {
       if (editIncomeId === id) setEditIncomeId(null);
       await reloadIncomes();
       setStatus("Cashflow marked as done.");
-      setTab("Past");
+      setTab("History");
     } catch (err) {
       setError(explainError(err));
     } finally {
@@ -533,15 +559,15 @@ export default function ClientDetailPage() {
     setAddEntryPreset(undefined);
     try {
       if (result.kind === "investment") {
-        setStatus("Investment added.");
+        setStatus("Holding added.");
         await reloadPortfolios();
-        setTab("Portfolio");
+        setTab("Holdings");
       } else if (result.kind === "income") {
         setStatus("Cashflow added.");
         await reloadIncomes();
         setTab("Cashflow");
       } else {
-        setStatus("Obligation added.");
+        setStatus("Home insurance updated.");
         const c = result.item as Client;
         setClient(c);
         setForm(c);
@@ -556,7 +582,7 @@ export default function ClientDetailPage() {
               ? String(c.home_insurance_insured_premium)
               : "",
         });
-        setTab("More");
+        setTab("Profile");
       }
     } catch (err) {
       setError(explainError(err));
@@ -569,23 +595,32 @@ export default function ClientDetailPage() {
       <>
         <ErrorBanner message={error || "Client not found"} />
         <Link href="/clients" className="linkish">
-          ← Back to all clients
+          ← Back to clients
         </Link>
       </>
     );
   }
 
   const totals = portfolio?.totals;
+  const contactBits = [
+    client.phone_number,
+    client.email,
+    client.birthday ? `Born ${formatDate(client.birthday)}` : null,
+  ].filter(Boolean);
 
   return (
     <>
       <PageHeader
         title={client.name}
-        description={`Birthday: ${formatDate(client.birthday)} · Display VND`}
+        description={
+          contactBits.length
+            ? contactBits.join(" · ")
+            : "No contact details yet — add them in Profile."
+        }
         actions={
           <>
             <Link href="/clients" className="btn btn-ghost">
-              ← Back to all clients
+              ← Clients
             </Link>
             <button
               type="button"
@@ -595,150 +630,19 @@ export default function ClientDetailPage() {
             >
               {busy ? "Refreshing…" : "Refresh prices"}
             </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={startEditClient}
+            >
+              Edit profile
+            </button>
           </>
         }
       />
 
-      <div className="toolbar client-actions" style={{ marginBottom: "0.85rem" }}>
-        <span className="muted small">Client actions</span>
-        <button
-          type="button"
-          className="btn btn-secondary"
-          disabled={busy || editing}
-          onClick={startEditClient}
-        >
-          Edit this client
-        </button>
-        <button
-          type="button"
-          className="btn btn-primary"
-          disabled={busy}
-          onClick={() => void onDelete()}
-        >
-          Delete this client
-        </button>
-      </div>
-
       {status ? <p className="muted">{status}</p> : null}
       <ErrorBanner message={error} />
-
-      {editing ? (
-        <Panel title="Client's information">
-          <form className="stack" onSubmit={onSave}>
-            <div className="detail-grid">
-              <label className="field">
-                <span>Name</span>
-                <input
-                  type="text"
-                  required
-                  value={form.name || ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, name: e.target.value }))
-                  }
-                />
-              </label>
-              <label className="field checkbox-field">
-                <span>Has birthday?</span>
-                <input
-                  type="checkbox"
-                  checked={hasBirthday}
-                  onChange={(e) => setHasBirthday(e.target.checked)}
-                />
-              </label>
-              <label className="field">
-                <span>Birthday</span>
-                <input
-                  type="date"
-                  disabled={!hasBirthday}
-                  value={form.birthday || ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, birthday: e.target.value }))
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Address</span>
-                <textarea
-                  value={form.address || ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, address: e.target.value }))
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Phone number</span>
-                <input
-                  type="text"
-                  value={form.phone_number || ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, phone_number: e.target.value }))
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Email</span>
-                <input
-                  type="email"
-                  value={form.email || ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, email: e.target.value }))
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Notes</span>
-                <textarea
-                  value={form.notes || ""}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, notes: e.target.value }))
-                  }
-                />
-              </label>
-            </div>
-            <div className="toolbar">
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={busy}
-              >
-                {busy ? "Saving…" : "Save client"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                disabled={busy}
-                onClick={revertClientEdit}
-              >
-                Revert
-              </button>
-            </div>
-          </form>
-        </Panel>
-      ) : null}
-
-      {totals ? (
-        <div className="metric-grid" style={{ marginBottom: "1rem" }}>
-          <div className="metric">
-            <div className="metric-label">Principal (VND)</div>
-            <div className="metric-value">
-              {formatMoney(totals.principal, "VND")}
-            </div>
-          </div>
-          <div className="metric">
-            <div className="metric-label">Current value</div>
-            <div className="metric-value">
-              {formatMoney(totals.current_value, "VND")}
-            </div>
-          </div>
-          <div className="metric">
-            <div className="metric-label">Unrealized P&L</div>
-            <div className={`metric-value ${pnlClass(totals.pnl)}`}>
-              {formatMoney(totals.pnl, "VND")}{" "}
-              <span className="small">{formatPct(totals.pnl_pct)}</span>
-            </div>
-          </div>
-        </div>
-      ) : null}
 
       <div className="crm-tabs" role="tablist">
         {TABS.map((t) => (
@@ -748,7 +652,10 @@ export default function ClientDetailPage() {
             role="tab"
             aria-selected={tab === t}
             className={`crm-tab ${tab === t ? "active" : ""}`}
-            onClick={() => setTab(t)}
+            onClick={() => {
+              setTab(t);
+              if (t !== "Holdings") setFocusSubgroup(null);
+            }}
           >
             {t}
           </button>
@@ -757,26 +664,46 @@ export default function ClientDetailPage() {
 
       {tab === "Overview" ? (
         <OverviewTab
+          totals={totals}
           groups={groups}
           alloc={alloc}
           vsDebt={vsDebt}
-          drillGroup={drillGroup}
-          setDrillGroup={setDrillGroup}
-          portfolio={portfolio}
+          onOpenHoldings={openHoldings}
         />
       ) : null}
 
-      {tab === "Portfolio" ? (
+      {tab === "Holdings" ? (
         <>
-          <div className="toolbar" style={{ marginBottom: "0.85rem" }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => openAddEntry(undefined, "Portfolio")}
-            >
-              Add Investment/Debts/Cashflow
-            </button>
+          <div className="desk-toolbar">
+            <div className="toolbar">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => openAddEntry(undefined, "Holdings")}
+              >
+                Add holding
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setShowDetails((v) => !v)}
+              >
+                {showDetails ? "Compact columns" : "All columns"}
+              </button>
+            </div>
+            {focusSubgroup ? (
+              <div className="filter-chip">
+                <span>Showing {focusSubgroup}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setFocusSubgroup(null)}
+                >
+                  Clear
+                </button>
+              </div>
+            ) : null}
           </div>
 
           {showAddEntry ? (
@@ -802,7 +729,7 @@ export default function ClientDetailPage() {
               }}
               onSaved={async () => {
                 setEditInvId(null);
-                setStatus("Investment updated.");
+                setStatus("Holding updated.");
                 try {
                   await reloadPortfolios();
                 } catch (err) {
@@ -813,9 +740,9 @@ export default function ClientDetailPage() {
           ) : null}
 
           {pendingDone ? (
-            <Panel title="Mark investment done">
+            <Panel title="Mark holding done">
               <p className="muted">
-                Set closing price before moving investment to past?
+                Confirm closing price, then move this position to History.
               </p>
               <form
                 className="stack"
@@ -825,7 +752,7 @@ export default function ClientDetailPage() {
                 }}
               >
                 <label className="field">
-                  <span>Closing Price</span>
+                  <span>Closing price</span>
                   <input
                     type="number"
                     min={0}
@@ -862,6 +789,9 @@ export default function ClientDetailPage() {
           {portfolio ? (
             <PortfolioTables
               view={portfolio}
+              compact={!showDetails}
+              collapsedByDefault={!focusSubgroup}
+              focusSubgroup={focusSubgroup}
               actions={{
                 mode: "active",
                 busyId: busyInvId,
@@ -871,22 +801,27 @@ export default function ClientDetailPage() {
               }}
             />
           ) : (
-            <EmptyState title="No open investments" />
+            <EmptyState title="No open holdings" />
           )}
         </>
       ) : null}
 
       {tab === "Cashflow" ? (
         <>
-          <div className="toolbar" style={{ marginBottom: "0.85rem" }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => openAddEntry("Salary", "Cashflow")}
-            >
-              Add cashflow
-            </button>
+          <div className="desk-toolbar">
+            <div className="toolbar">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => openAddEntry("Salary", "Cashflow")}
+              >
+                Add cashflow
+              </button>
+            </div>
+            <p className="muted small cashflow-sum">
+              Active income total · {formatMoney(cashflowTotal, "VND")}
+            </p>
           </div>
 
           {showAddEntry && tab === "Cashflow" ? (
@@ -909,7 +844,7 @@ export default function ClientDetailPage() {
               onCancel={() => setEditIncomeId(null)}
               onSaved={async () => {
                 setEditIncomeId(null);
-                setStatus("Income updated.");
+                setStatus("Cashflow updated.");
                 try {
                   await reloadIncomes();
                 } catch (err) {
@@ -919,29 +854,9 @@ export default function ClientDetailPage() {
             />
           ) : null}
 
-          <div className="metric-grid" style={{ marginBottom: "1rem" }}>
-            <div className="metric">
-              <div className="metric-label">Salary</div>
-              <div className="metric-value">
-                {formatMoney(client.salary_amount, "VND")}
-              </div>
-            </div>
-            <div className="metric">
-              <div className="metric-label">Dividends</div>
-              <div className="metric-value">
-                {formatMoney(client.dividends_amount, "VND")}
-              </div>
-            </div>
-            <div className="metric">
-              <div className="metric-label">Other income</div>
-              <div className="metric-value">
-                {formatMoney(client.others_income_amount, "VND")}
-              </div>
-            </div>
-          </div>
           <IncomeTable
             items={actualInc}
-            title="Incomes"
+            title="Income"
             busyId={busyIncomeId}
             onEdit={startEditIncome}
             onDone={(id) => void markIncomeDone(id)}
@@ -949,7 +864,7 @@ export default function ClientDetailPage() {
           />
           <IncomeTable
             items={forecastInc}
-            title="Forecast incomes"
+            title="Forecast"
             busyId={busyIncomeId}
             onEdit={startEditIncome}
             onDone={(id) => void markIncomeDone(id)}
@@ -958,11 +873,17 @@ export default function ClientDetailPage() {
         </>
       ) : null}
 
-      {tab === "Past" ? (
+      {tab === "History" ? (
         <>
+          <p className="lede" style={{ marginBottom: "0.9rem" }}>
+            Completed holdings and cashflow. Restore anything that should be
+            active again.
+          </p>
           {pastPortfolio?.groups.length ? (
             <PortfolioTables
               view={pastPortfolio}
+              compact
+              collapsedByDefault
               actions={{
                 mode: "past",
                 busyId: busyInvId,
@@ -970,45 +891,21 @@ export default function ClientDetailPage() {
               }}
             />
           ) : (
-            <EmptyState title="No completed investments" />
+            <EmptyState title="No completed holdings" />
           )}
           <IncomeTable
             items={pastInc}
-            title="Completed incomes"
+            title="Completed cashflow"
             busyId={busyIncomeId}
             onRevert={(id) => void revertIncome(id)}
           />
         </>
       ) : null}
 
-      {tab === "More" ? (
+      {tab === "Profile" ? (
         <>
-          <div className="toolbar" style={{ marginBottom: "0.85rem" }}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy}
-              onClick={() => openAddEntry(undefined, "More")}
-            >
-              Add Investment/Debts/Cashflow
-            </button>
-          </div>
-
-          {showAddEntry ? (
-            <AddFinancialEntryForm
-              clientId={clientId}
-              initialEntryType={addEntryPreset}
-              onError={handleInvError}
-              onCancel={() => {
-                setShowAddEntry(false);
-                setAddEntryPreset(undefined);
-              }}
-              onSaved={(result) => void onAddEntrySaved(result)}
-            />
-          ) : null}
-
           <Panel
-            title="Client's information"
+            title="Client information"
             actions={
               editing ? null : (
                 <button
@@ -1023,9 +920,98 @@ export default function ClientDetailPage() {
             }
           >
             {editing ? (
-              <p className="muted small">
-                Editing above — use Save client or Revert.
-              </p>
+              <form className="stack" onSubmit={onSave}>
+                <div className="detail-grid">
+                  <label className="field">
+                    <span>Name</span>
+                    <input
+                      type="text"
+                      required
+                      value={form.name || ""}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, name: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="field checkbox-field">
+                    <span>Has birthday?</span>
+                    <input
+                      type="checkbox"
+                      checked={hasBirthday}
+                      onChange={(e) => setHasBirthday(e.target.checked)}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Birthday</span>
+                    <input
+                      type="date"
+                      disabled={!hasBirthday}
+                      value={form.birthday || ""}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, birthday: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Address</span>
+                    <textarea
+                      value={form.address || ""}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, address: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Phone number</span>
+                    <input
+                      type="text"
+                      value={form.phone_number || ""}
+                      onChange={(e) =>
+                        setForm((f) => ({
+                          ...f,
+                          phone_number: e.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      value={form.email || ""}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, email: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Notes</span>
+                    <textarea
+                      value={form.notes || ""}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, notes: e.target.value }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="toolbar">
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={busy}
+                  >
+                    {busy ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={busy}
+                    onClick={revertClientEdit}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             ) : (
               <dl className="detail-grid">
                 <div>
@@ -1132,7 +1118,7 @@ export default function ClientDetailPage() {
                     disabled={busy}
                     onClick={revertInsuranceEdit}
                   >
-                    Revert
+                    Cancel
                   </button>
                 </div>
               </form>
@@ -1188,6 +1174,20 @@ export default function ClientDetailPage() {
           <Panel title="Attachments">
             <AttachmentPanel clientId={client.id} />
           </Panel>
+
+          <Panel title="Danger zone">
+            <p className="muted" style={{ marginTop: 0 }}>
+              Deleting removes this client and related desk data permanently.
+            </p>
+            <button
+              type="button"
+              className="btn danger"
+              disabled={busy}
+              onClick={() => void onDelete()}
+            >
+              Delete client
+            </button>
+          </Panel>
         </>
       ) : null}
     </>
@@ -1195,97 +1195,119 @@ export default function ClientDetailPage() {
 }
 
 function OverviewTab({
+  totals,
   groups,
   alloc,
   vsDebt,
-  drillGroup,
-  setDrillGroup,
-  portfolio,
+  onOpenHoldings,
 }: {
+  totals: PortfolioView["totals"] | undefined;
   groups: GroupTotals[];
   alloc: ReturnType<typeof allocationSlices>;
   vsDebt: ReturnType<typeof assetsVsDebt>;
-  drillGroup: string | null;
-  setDrillGroup: (name: string | null) => void;
-  portfolio: PortfolioView | null;
+  onOpenHoldings: (subgroup?: string) => void;
 }) {
-  const drill = findSubgroup(portfolio, drillGroup);
-
   return (
-    <div className="overview-layout">
-      <aside className="overview-side">
-        <div className="donut-panel">
-          <div
-            className="donut"
-            style={{ background: conicGradient(alloc.slices) }}
-            aria-hidden
-          />
-          <p className="donut-caption muted small">Allocation (ex debt / RE)</p>
-          <ul className="legend">
-            {alloc.slices.map((s) => (
-              <li key={s.name}>
-                <span>
-                  <i style={{ background: s.color }} />
-                  {s.name}
-                </span>
-                <span>{formatMoney(s.value, "VND")}</span>
-              </li>
-            ))}
-          </ul>
+    <div className="stack">
+      {totals ? (
+        <div className="metric-grid">
+          <div className="metric">
+            <div className="metric-label">Principal</div>
+            <div className="metric-value">
+              {formatMoney(totals.principal, "VND")}
+            </div>
+          </div>
+          <div className="metric">
+            <div className="metric-label">Current value</div>
+            <div className="metric-value">
+              {formatMoney(totals.current_value, "VND")}
+            </div>
+          </div>
+          <div className="metric">
+            <div className="metric-label">Unrealized P&L</div>
+            <div className={`metric-value ${pnlClass(totals.pnl)}`}>
+              {formatMoney(totals.pnl, "VND")}{" "}
+              <span className="small">{formatPct(totals.pnl_pct)}</span>
+            </div>
+          </div>
         </div>
-        <div className="donut-panel">
-          <div
-            className="donut"
-            style={{ background: conicGradient(vsDebt.slices) }}
-            aria-hidden
-          />
-          <p className="donut-caption muted small">Assets vs debt</p>
-          <ul className="legend">
-            {vsDebt.slices.map((s) => (
-              <li key={s.name}>
-                <span>
-                  <i style={{ background: s.color }} />
-                  {s.name}
-                </span>
-                <span>{formatMoney(s.value, "VND")}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </aside>
+      ) : null}
 
-      <div>
-        {drill && portfolio ? (
-          <Panel
-            title={`${subgroupMeta(drill.name).icon} ${drill.name}`}
-            actions={
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setDrillGroup(null)}
-              >
-                Back to catalog
-              </button>
-            }
-          >
-            <PortfolioTables
-              view={{
-                ...portfolio,
-                groups: [
-                  {
-                    name: "Detail",
-                    subgroups: [drill],
-                  },
-                ],
-              }}
-            />
-          </Panel>
-        ) : (
+      <div className="overview-layout">
+        <aside className="overview-side">
+          <div className="donut-panel">
+            <div
+              className="donut-wrap"
+              style={{ background: conicGradient(alloc.slices) }}
+              aria-hidden
+            >
+              <div className="donut-hole">
+                <div className="donut-total">
+                  {formatMoney(alloc.total, "VND")}
+                </div>
+                <div className="donut-label">Allocation</div>
+              </div>
+            </div>
+            <p className="donut-caption">Excludes debt & real estate</p>
+            <ul className="legend">
+              {alloc.slices.map((s) => (
+                <li key={s.name}>
+                  <span>
+                    <i
+                      className="legend-swatch"
+                      style={{ background: s.color }}
+                    />
+                    {s.name}
+                  </span>
+                  <span>{s.pct.toFixed(0)}%</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="donut-panel">
+            <div
+              className="donut-wrap"
+              style={{ background: conicGradient(vsDebt.slices) }}
+              aria-hidden
+            >
+              <div className="donut-hole">
+                <div className="donut-total">
+                  {formatMoney(vsDebt.assets - vsDebt.debt, "VND")}
+                </div>
+                <div className="donut-label">Net assets</div>
+              </div>
+            </div>
+            <p className="donut-caption">Assets vs debt</p>
+            <ul className="legend">
+              {vsDebt.slices.map((s) => (
+                <li key={s.name}>
+                  <span>
+                    <i
+                      className="legend-swatch"
+                      style={{ background: s.color }}
+                    />
+                    {s.name}
+                  </span>
+                  <span>{formatMoney(s.value, "VND")}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </aside>
+
+        <div>
+          <div className="section-intro">
+            <h2 className="section-heading">Holdings by type</h2>
+            <p className="muted small">
+              Open a group to work positions in Holdings.
+            </p>
+          </div>
           <div className="asset-catalog">
             {groups.length ? (
               groups.map((g) => {
                 const meta = subgroupMeta(g.name);
-                const pnl = g.value - g.cost;
+                const primary = cardPrimary(g);
+                const secondary = cardSecondary(g);
                 const share =
                   alloc.total > 0 &&
                   g.name !== "Debt" &&
@@ -1301,41 +1323,45 @@ function OverviewTab({
                     className="asset-card"
                     style={{
                       ["--card-accent" as string]: meta.color,
-                      textAlign: "left",
-                      cursor: "pointer",
-                      width: "100%",
                     }}
-                    onClick={() => setDrillGroup(g.name)}
+                    onClick={() => onOpenHoldings(g.name)}
                   >
                     <div className="asset-card-head">
                       <span className="asset-card-name">
                         {meta.icon} {g.name}
                       </span>
-                      <span className="asset-card-pct">
-                        {share.toFixed(0)}%
-                      </span>
+                      <span className="asset-card-pct">{share.toFixed(0)}%</span>
                     </div>
                     <div className="asset-card-metrics">
                       <div>
-                        <span>{meta.m1}: </span>
-                        <strong>{formatMoney(g.value, "VND")}</strong>
+                        <span>{primary.label}: </span>
+                        <strong>{formatMoney(primary.value, "VND")}</strong>
                       </div>
                       <div>
-                        <span>{meta.m2}: </span>
-                        <strong className={pnlClass(pnl)}>
-                          {formatMoney(pnl, "VND")}
+                        <span>{secondary.label}: </span>
+                        <strong
+                          className={
+                            secondary.tone ? pnlClass(secondary.value) : undefined
+                          }
+                        >
+                          {formatMoney(secondary.value, "VND")}
                         </strong>
                       </div>
-                      <div className="muted small">{g.count} positions</div>
+                      <div className="muted small">
+                        {g.count} position{g.count === 1 ? "" : "s"} · View →
+                      </div>
                     </div>
                   </button>
                 );
               })
             ) : (
-              <EmptyState title="No open holdings" />
+              <EmptyState
+                title="No open holdings"
+                description="Add a holding from the Holdings tab."
+              />
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -1393,33 +1419,30 @@ function IncomeTable({
                             <button
                               type="button"
                               className="btn btn-ghost"
-                              title="Edit cashflow"
                               disabled={busy}
                               onClick={() => onEdit(row.id)}
                             >
-                              ✏
+                              Edit
                             </button>
                           ) : null}
                           {onDone ? (
                             <button
                               type="button"
                               className="btn btn-secondary"
-                              title="Mark done"
                               disabled={busy}
                               onClick={() => onDone(row.id)}
                             >
-                              ✔
+                              Done
                             </button>
                           ) : null}
                           {onDelete ? (
                             <button
                               type="button"
-                              className="btn btn-primary"
-                              title="Delete cashflow"
+                              className="btn btn-ghost danger"
                               disabled={busy}
                               onClick={() => onDelete(row.id)}
                             >
-                              ✖
+                              Delete
                             </button>
                           ) : null}
                         </div>
@@ -1433,7 +1456,7 @@ function IncomeTable({
                           disabled={busy}
                           onClick={() => onRevert?.(row.id)}
                         >
-                          ↩ Active
+                          Restore
                         </button>
                       </td>
                     ) : null}
@@ -1444,7 +1467,7 @@ function IncomeTable({
           </table>
         </div>
       ) : (
-        <EmptyState title="No incomes" />
+        <EmptyState title={`No ${title.toLowerCase()}`} />
       )}
     </Panel>
   );

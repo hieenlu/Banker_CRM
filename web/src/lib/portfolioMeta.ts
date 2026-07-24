@@ -61,6 +61,8 @@ export type GroupTotals = {
   cost: number;
   count: number;
   items: Investment[];
+  /** Optional debt monthly payment aggregate for catalog cards. */
+  monthly?: number;
 };
 
 export function groupInvestments(investments: Investment[]): GroupTotals[] {
