@@ -90,7 +90,14 @@ export default function ClientDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [editingInsurance, setEditingInsurance] = useState(false);
   const [form, setForm] = useState<Partial<Client>>({});
+  const [insuranceForm, setInsuranceForm] = useState({
+    home_insurance_amount_covered: "" as string,
+    home_insurance_expiry_date: "" as string,
+    home_insurance_insured_premium: "" as string,
+  });
+  const [hasBirthday, setHasBirthday] = useState(false);
   const [busy, setBusy] = useState(false);
   const [drillGroup, setDrillGroup] = useState<string | null>(null);
 
@@ -116,6 +123,20 @@ export default function ClientDetailPage() {
       ]);
       setClient(c);
       setForm(c);
+      setHasBirthday(Boolean(c.birthday));
+      setInsuranceForm({
+        home_insurance_amount_covered:
+          c.home_insurance_amount_covered != null
+            ? String(c.home_insurance_amount_covered)
+            : "",
+        home_insurance_expiry_date: c.home_insurance_expiry_date || "",
+        home_insurance_insured_premium:
+          c.home_insurance_insured_premium != null
+            ? String(c.home_insurance_insured_premium)
+            : "",
+      });
+      setEditing(false);
+      setEditingInsurance(false);
       setPortfolio(port);
       setPastPortfolio(past);
       setIncomes(inc.items);
@@ -163,31 +184,123 @@ export default function ClientDetailPage() {
     }
   }
 
+  function startEditClient() {
+    if (!client) return;
+    setForm(client);
+    setHasBirthday(Boolean(client.birthday));
+    setEditing(true);
+    setEditingInsurance(false);
+    setTab("More");
+    setStatus(null);
+    setError(null);
+  }
+
+  function revertClientEdit() {
+    if (!client) return;
+    setForm(client);
+    setHasBirthday(Boolean(client.birthday));
+    setEditing(false);
+    setStatus(null);
+    setError(null);
+  }
+
+  function startEditInsurance() {
+    if (!client) return;
+    setInsuranceForm({
+      home_insurance_amount_covered:
+        client.home_insurance_amount_covered != null
+          ? String(client.home_insurance_amount_covered)
+          : "",
+      home_insurance_expiry_date: client.home_insurance_expiry_date || "",
+      home_insurance_insured_premium:
+        client.home_insurance_insured_premium != null
+          ? String(client.home_insurance_insured_premium)
+          : "",
+    });
+    setEditingInsurance(true);
+    setEditing(false);
+    setStatus(null);
+    setError(null);
+  }
+
+  function revertInsuranceEdit() {
+    if (!client) return;
+    setInsuranceForm({
+      home_insurance_amount_covered:
+        client.home_insurance_amount_covered != null
+          ? String(client.home_insurance_amount_covered)
+          : "",
+      home_insurance_expiry_date: client.home_insurance_expiry_date || "",
+      home_insurance_insured_premium:
+        client.home_insurance_insured_premium != null
+          ? String(client.home_insurance_insured_premium)
+          : "",
+    });
+    setEditingInsurance(false);
+    setStatus(null);
+    setError(null);
+  }
+
   async function onSave(e: FormEvent) {
+    e.preventDefault();
+    if (!client) return;
+    const cleanName = (form.name || "").trim();
+    if (!cleanName) {
+      setError("Name is required.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const updated = await api.updateClient(client.id, {
+        name: cleanName,
+        birthday: hasBirthday ? form.birthday || null : null,
+        address: (form.address || "").trim() || null,
+        phone_number: (form.phone_number || "").trim() || null,
+        email: (form.email || "").trim() || null,
+        notes: (form.notes || "").trim() || null,
+      });
+      setClient(updated);
+      setForm(updated);
+      setHasBirthday(Boolean(updated.birthday));
+      setEditing(false);
+      setStatus("Client updated.");
+    } catch (err) {
+      setError(explainError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onSaveInsurance(e: FormEvent) {
     e.preventDefault();
     if (!client) return;
     setBusy(true);
     setError(null);
     try {
+      const amount = insuranceForm.home_insurance_amount_covered.trim();
+      const premium = insuranceForm.home_insurance_insured_premium.trim();
+      const expiry = insuranceForm.home_insurance_expiry_date.trim();
       const updated = await api.updateClient(client.id, {
-        name: form.name || client.name,
-        birthday: form.birthday || null,
-        address: form.address || null,
-        phone_number: form.phone_number || null,
-        email: form.email || null,
-        notes: form.notes || null,
-        salary_amount: form.salary_amount ?? null,
-        dividends_amount: form.dividends_amount ?? null,
-        others_income_amount: form.others_income_amount ?? null,
-        home_insurance_amount_covered:
-          form.home_insurance_amount_covered ?? null,
-        home_insurance_expiry_date: form.home_insurance_expiry_date || null,
-        home_insurance_insured_premium:
-          form.home_insurance_insured_premium ?? null,
+        home_insurance_amount_covered: amount === "" ? null : Number(amount),
+        home_insurance_expiry_date: expiry || null,
+        home_insurance_insured_premium: premium === "" ? null : Number(premium),
       });
       setClient(updated);
       setForm(updated);
-      setEditing(false);
+      setInsuranceForm({
+        home_insurance_amount_covered:
+          updated.home_insurance_amount_covered != null
+            ? String(updated.home_insurance_amount_covered)
+            : "",
+        home_insurance_expiry_date: updated.home_insurance_expiry_date || "",
+        home_insurance_insured_premium:
+          updated.home_insurance_insured_premium != null
+            ? String(updated.home_insurance_insured_premium)
+            : "",
+      });
+      setEditingInsurance(false);
+      setStatus("Home insurance updated.");
     } catch (err) {
       setError(explainError(err));
     } finally {
@@ -240,30 +353,126 @@ export default function ClientDetailPage() {
             >
               {busy ? "Refreshing…" : "Refresh prices"}
             </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => {
-                setTab("More");
-                setEditing(true);
-              }}
-            >
-              Edit this client
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={busy}
-              onClick={() => void onDelete()}
-            >
-              Delete this client
-            </button>
           </>
         }
       />
 
+      <div className="toolbar client-actions" style={{ marginBottom: "0.85rem" }}>
+        <span className="muted small">Client actions</span>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={busy || editing}
+          onClick={startEditClient}
+        >
+          Edit this client
+        </button>
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={busy}
+          onClick={() => void onDelete()}
+        >
+          Delete this client
+        </button>
+      </div>
+
       {status ? <p className="muted">{status}</p> : null}
       <ErrorBanner message={error} />
+
+      {editing ? (
+        <Panel title="Client's information">
+          <form className="stack" onSubmit={onSave}>
+            <div className="detail-grid">
+              <label className="field">
+                <span>Name</span>
+                <input
+                  type="text"
+                  required
+                  value={form.name || ""}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, name: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field checkbox-field">
+                <span>Has birthday?</span>
+                <input
+                  type="checkbox"
+                  checked={hasBirthday}
+                  onChange={(e) => setHasBirthday(e.target.checked)}
+                />
+              </label>
+              <label className="field">
+                <span>Birthday</span>
+                <input
+                  type="date"
+                  disabled={!hasBirthday}
+                  value={form.birthday || ""}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, birthday: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Address</span>
+                <textarea
+                  value={form.address || ""}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, address: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Phone number</span>
+                <input
+                  type="text"
+                  value={form.phone_number || ""}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, phone_number: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Email</span>
+                <input
+                  type="email"
+                  value={form.email || ""}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, email: e.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Notes</span>
+                <textarea
+                  value={form.notes || ""}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, notes: e.target.value }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="toolbar">
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={busy}
+              >
+                {busy ? "Saving…" : "Save client"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                disabled={busy}
+                onClick={revertClientEdit}
+              >
+                Revert
+              </button>
+            </div>
+          </form>
+        </Panel>
+      ) : null}
 
       {totals ? (
         <div className="metric-grid" style={{ marginBottom: "1rem" }}>
@@ -362,62 +571,35 @@ export default function ClientDetailPage() {
 
       {tab === "More" ? (
         <>
-          <Panel title="Profile">
+          <Panel
+            title="Client's information"
+            actions={
+              editing ? null : (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={startEditClient}
+                >
+                  Edit
+                </button>
+              )
+            }
+          >
             {editing ? (
-              <form className="stack" onSubmit={onSave}>
-                <div className="detail-grid">
-                  {(
-                    [
-                      ["name", "Name"],
-                      ["email", "Email"],
-                      ["phone_number", "Phone"],
-                      ["birthday", "Birthday"],
-                      ["address", "Address"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <label key={key} className="field">
-                      <span>{label}</span>
-                      <input
-                        type={key === "birthday" ? "date" : "text"}
-                        value={(form[key] as string) || ""}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, [key]: e.target.value }))
-                        }
-                      />
-                    </label>
-                  ))}
-                  <label className="field">
-                    <span>Notes</span>
-                    <textarea
-                      value={form.notes || ""}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, notes: e.target.value }))
-                      }
-                    />
-                  </label>
-                </div>
-                <div className="toolbar">
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={busy}
-                  >
-                    {busy ? "Saving…" : "Save profile"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => {
-                      setForm(client);
-                      setEditing(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
+              <p className="muted small">
+                Editing above — use Save client or Revert.
+              </p>
             ) : (
               <dl className="detail-grid">
+                <div>
+                  <dt>Name</dt>
+                  <dd>{client.name}</dd>
+                </div>
+                <div>
+                  <dt>Birthday</dt>
+                  <dd>{formatDate(client.birthday)}</dd>
+                </div>
                 <div>
                   <dt>Email</dt>
                   <dd>{client.email || "—"}</dd>
@@ -438,25 +620,106 @@ export default function ClientDetailPage() {
             )}
           </Panel>
 
-          <Panel title="Home insurance">
-            <dl className="detail-grid">
-              <div>
-                <dt>Amount covered</dt>
-                <dd>
-                  {formatMoney(client.home_insurance_amount_covered, "VND")}
-                </dd>
-              </div>
-              <div>
-                <dt>Expiry</dt>
-                <dd>{formatDate(client.home_insurance_expiry_date)}</dd>
-              </div>
-              <div>
-                <dt>Premium</dt>
-                <dd>
-                  {formatMoney(client.home_insurance_insured_premium, "VND")}
-                </dd>
-              </div>
-            </dl>
+          <Panel
+            title="Home insurance"
+            actions={
+              editingInsurance ? null : (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={startEditInsurance}
+                >
+                  Edit
+                </button>
+              )
+            }
+          >
+            {editingInsurance ? (
+              <form className="stack" onSubmit={onSaveInsurance}>
+                <div className="detail-grid">
+                  <label className="field">
+                    <span>Amount covered</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1000}
+                      value={insuranceForm.home_insurance_amount_covered}
+                      onChange={(e) =>
+                        setInsuranceForm((f) => ({
+                          ...f,
+                          home_insurance_amount_covered: e.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Expiry date</span>
+                    <input
+                      type="date"
+                      value={insuranceForm.home_insurance_expiry_date}
+                      onChange={(e) =>
+                        setInsuranceForm((f) => ({
+                          ...f,
+                          home_insurance_expiry_date: e.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Insured premium</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={100}
+                      value={insuranceForm.home_insurance_insured_premium}
+                      onChange={(e) =>
+                        setInsuranceForm((f) => ({
+                          ...f,
+                          home_insurance_insured_premium: e.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+                <div className="toolbar">
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={busy}
+                  >
+                    {busy ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={busy}
+                    onClick={revertInsuranceEdit}
+                  >
+                    Revert
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <dl className="detail-grid">
+                <div>
+                  <dt>Amount covered</dt>
+                  <dd>
+                    {formatMoney(client.home_insurance_amount_covered, "VND")}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Expiry</dt>
+                  <dd>{formatDate(client.home_insurance_expiry_date)}</dd>
+                </div>
+                <div>
+                  <dt>Premium</dt>
+                  <dd>
+                    {formatMoney(client.home_insurance_insured_premium, "VND")}
+                  </dd>
+                </div>
+              </dl>
+            )}
           </Panel>
 
           <Panel title="Reminders">
