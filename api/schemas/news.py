@@ -119,3 +119,45 @@ class NewsQuery(BaseModel):
     max_age_hours: int | None = 336
     page: int = 1
     page_size: int = 25
+
+
+class XFeedItemOut(BaseModel):
+    headline: str
+    source: str
+    date: str = ""
+    link: str
+    handle: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+    @classmethod
+    def from_cache_item(cls, item: dict[str, Any]) -> "XFeedItemOut":
+        handle = str(item.get("handle") or "").strip().lstrip("@")
+        source = str(item.get("source") or "")
+        if not handle and source.startswith("X @"):
+            handle = source[3:].strip()
+        tags = item.get("tags") or []
+        if not isinstance(tags, list):
+            tags = []
+        return cls(
+            headline=str(item.get("headline") or ""),
+            source=source or (f"X @{handle}" if handle else "X"),
+            date=str(item.get("date") or ""),
+            link=str(item.get("link") or ""),
+            handle=handle,
+            tags=[str(t) for t in tags if t],
+        )
+
+
+class XFeedsOut(BaseModel):
+    items: list[XFeedItemOut]
+    fetched_at: datetime | None = None
+    profiles: list[str]
+    cache_key: str
+
+
+class XFeedsRefreshOut(BaseModel):
+    count: int
+    items: list[XFeedItemOut]
+    fetched_at: datetime
+    profiles: list[str]
+    errors: list[str] = Field(default_factory=list)

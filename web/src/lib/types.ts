@@ -235,3 +235,27 @@ export type NewsRefreshResult = {
   classified: number;
   errors: string[];
 };
+
+export type XFeedItem = {
+  headline: string;
+  source: string;
+  date: string;
+  link: string;
+  handle: string;
+  tags: string[];
+};
+
+export type XFeedsResult = {
+  items: XFeedItem[];
+  fetched_at: string | null;
+  profiles: string[];
+  cache_key: string;
+};
+
+export type XFeedsRefreshResult = {
+  count: number;
+  items: XFeedItem[];
+  fetched_at: string;
+  profiles: string[];
+  errors: string[];
+};

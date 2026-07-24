@@ -17,6 +17,8 @@ import type {
   Reminder,
   StoredFile,
   TokenResponse,
+  XFeedsRefreshResult,
+  XFeedsResult,
 } from "./types";
 
 function resolveApiUrl(): string {
@@ -219,6 +221,17 @@ export const api = {
     return apiFetch<NewsRefreshResult>("/news/refresh", {
       method: "POST",
       query: params,
+    });
+  },
+  listXFeeds() {
+    return apiFetch<XFeedsResult>("/news/x-feeds");
+  },
+  refreshXFeeds(params: { limit_per_profile?: number } = {}) {
+    return apiFetch<XFeedsRefreshResult>("/news/x-feeds/refresh", {
+      method: "POST",
+      query: {
+        limit_per_profile: params.limit_per_profile ?? 12,
+      },
     });
   },
   listIncomes(params: {

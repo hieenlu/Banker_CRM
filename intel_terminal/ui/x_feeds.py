@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from models import NewsCache
 from scraper import (
+    X_FEEDS_CACHE_KEY,
     X_PROFILES_DEFAULT,
     get_cached_news,
     scrape_x_analyst_feeds,
@@ -19,7 +20,6 @@ from scraper import (
 from utils import keywords_hash
 
 
-X_FEEDS_CACHE_KEY = "__x_analyst_feeds__:KobeissiLetter,citrini"
 X_PROFILE_META: dict[str, dict[str, str]] = {
     "KobeissiLetter": {
         "label": "Kobeissi Letter",

@@ -173,6 +173,55 @@ def test_news_and_newspaper(client: TestClient):
     assert today.json()["market_regime"] == "Neutral"
 
 
+def test_x_feeds_get_and_refresh(client: TestClient, monkeypatch):
+    headers = _auth_headers(client)
+
+    empty = client.get("/news/x-feeds", headers=headers)
+    assert empty.status_code == 200
+    body = empty.json()
+    assert body["items"] == []
+    assert body["fetched_at"] is None
+    assert "KobeissiLetter" in body["profiles"]
+
+    sample = [
+        {
+            "headline": "BREAKING: Markets rally on soft CPI print.",
+            "source": "X @KobeissiLetter",
+            "date": "2026-07-24T00:00:00",
+            "link": "https://x.com/KobeissiLetter/status/1",
+            "handle": "KobeissiLetter",
+            "tags": ["equities"],
+        },
+        {
+            "headline": "AI capex still the center of the selloff.",
+            "source": "X @citrini",
+            "date": "2026-07-23T12:00:00",
+            "link": "https://x.com/citrini/status/2",
+            "handle": "citrini",
+            "tags": ["equities"],
+        },
+    ]
+
+    monkeypatch.setattr(
+        "api.routers.news.scrape_x_analyst_feeds",
+        lambda profiles=None, limit_per_profile=12: sample,
+    )
+    refreshed = client.post("/news/x-feeds/refresh", headers=headers)
+    assert refreshed.status_code == 200, refreshed.text
+    payload = refreshed.json()
+    assert payload["count"] == 2
+    assert payload["items"][0]["handle"] == "KobeissiLetter"
+    assert payload["fetched_at"]
+
+    cached = client.get("/news/x-feeds", headers=headers)
+    assert cached.status_code == 200
+    assert len(cached.json()["items"]) == 2
+    assert cached.json()["fetched_at"]
+    assert cached.json()["items"][1]["link"].endswith("/status/2")
+
+
 def test_protected_routes_require_auth(client: TestClient):
     assert client.get("/clients").status_code == 401
     assert client.get("/news/articles").status_code == 401
+    assert client.get("/news/x-feeds").status_code == 401
+    assert client.post("/news/x-feeds/refresh").status_code == 401
