@@ -166,6 +166,24 @@ h2 {
   resize: vertical;
 }
 
+.field.checkbox-field {
+  align-content: center;
+}
+
+.field.checkbox-field input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: 0;
+  justify-self: start;
+}
+
+.client-actions {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--crm-border);
+  border-radius: var(--radius);
+  background: var(--crm-panel);
+}
+
 .btn {
   min-height: 40px;
   border-radius: 8px;
